@@ -1,3 +1,4 @@
+RewriteBase /
 RewriteEngine On
 
 # Nur /api/... an den PHP-Router weiterleiten. Alles andere in diesem
