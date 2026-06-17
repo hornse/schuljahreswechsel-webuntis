@@ -1,0 +1,12 @@
+# Echte Konfiguration enthält den WebUntis-Servernamen/Schulkennung -
+# niemals einchecken. Vorlage steht in config/config.example.php.
+config/config.php
+
+# SQLite-Datenbankdatei (Laufzeitdaten, nicht Teil des Codes)
+data/*.sqlite
+data/*.sqlite-journal
+
+# Übliches Betriebssystem-/Editor-Rauschen
+.DS_Store
+.idea/
+*.swp

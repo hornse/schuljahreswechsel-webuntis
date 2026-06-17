@@ -1,0 +1,14 @@
+RewriteEngine On
+
+# Nur /api/... an den PHP-Router weiterleiten. Alles andere in diesem
+# Ordner (index.html, css/, js/) ist statisches Frontend und wird von
+# Apache ganz normal ausgeliefert - dafür braucht es keine Regel.
+RewriteRule ^api/(.*)$ api-router.php?route=api/$1 [QSA,L]
+
+# Zweites Sicherheitsnetz: Die SQLite-Datei liegt ohnehin außerhalb dieses
+# Ordners (siehe config/config.example.php) und ist über den Webserver
+# damit gar nicht erreichbar. Diese Regel greift nur, falls das jemand
+# künftig versehentlich ändert.
+<FilesMatch "\.sqlite$">
+    Require all denied
+</FilesMatch>
