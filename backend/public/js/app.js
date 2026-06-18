@@ -654,40 +654,57 @@ function renderVorlagenVerwaltung() {
 }
 
 function renderVorlagenZeile(v, phasenNamen) {
-  const zeile = document.createElement('div');
-  zeile.className = 'vorlagen-zeile' + (v.aktiv ? '' : ' inaktiv');
-  zeile.draggable = true;
-  zeile.dataset.vorlageId = v.id;
+  const wrapper = document.createElement('div');
+  wrapper.className = 'vorlagen-zeile-wrapper' + (v.aktiv ? '' : ' inaktiv');
+  wrapper.draggable = true;
+  wrapper.dataset.vorlageId = v.id;
 
-  zeile.innerHTML = `
-    <span class="zieh-griff" title="Ziehen zum Umsortieren">⠿</span>
-    <input type="text" class="vorlagen-titel-feld" value="${v.titel}" data-feld="titel">
-    <select class="vorlagen-phase-feld" data-feld="phase">
-      ${phasenNamen.map((p) => `<option value="${p}" ${p === v.phase ? 'selected' : ''}>${p}</option>`).join('')}
-    </select>
-    <button class="btn-sekundaer btn" data-toggle-aktiv style="width:auto;">${v.aktiv ? 'deaktivieren' : 'reaktivieren'}</button>
+  wrapper.innerHTML = `
+    <div class="vorlagen-zeile">
+      <span class="zieh-griff" title="Ziehen zum Umsortieren">⠿</span>
+      <input type="text" class="vorlagen-titel-feld" value="${v.titel}" data-feld="titel">
+      <select class="vorlagen-phase-feld" data-feld="phase">
+        ${phasenNamen.map((p) => `<option value="${p}" ${p === v.phase ? 'selected' : ''}>${p}</option>`).join('')}
+      </select>
+      <button class="btn-sekundaer btn" data-toggle-aktiv style="width:auto;">${v.aktiv ? 'deaktivieren' : 'reaktivieren'}</button>
+      <span class="chev" data-rolle="vorlagen-chevron">▸</span>
+    </div>
+    <div class="schritt-detail" data-rolle="vorlagen-detail" style="padding:0 14px 14px 26px;">
+      <label style="font-size:10.5px;color:var(--muted);display:block;margin-bottom:4px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.04em;">
+        Weiterführende Infos (nur für angemeldete Personen sichtbar)
+      </label>
+      <textarea class="vorlagen-beschreibung-feld" data-feld="beschreibung" rows="3" placeholder="z. B. Schritt-für-Schritt-Hinweise, Links, worauf zu achten ist ...">${v.beschreibung ?? ''}</textarea>
+    </div>
   `;
 
-  zeile.addEventListener('dragstart', () => {
-    dragZustand = { id: v.id, phase: v.phase };
-    zeile.classList.add('wird-gezogen');
+  wrapper.querySelector('[data-rolle="vorlagen-chevron"]').addEventListener('click', () => {
+    wrapper.querySelector('[data-rolle="vorlagen-detail"]').classList.toggle('offen');
+    wrapper.querySelector('[data-rolle="vorlagen-chevron"]').classList.toggle('offen');
   });
-  zeile.addEventListener('dragend', () => {
-    zeile.classList.remove('wird-gezogen');
+
+  wrapper.addEventListener('dragstart', () => {
+    dragZustand = { id: v.id, phase: v.phase };
+    wrapper.classList.add('wird-gezogen');
+  });
+  wrapper.addEventListener('dragend', () => {
+    wrapper.classList.remove('wird-gezogen');
     dragZustand = null;
   });
 
-  zeile.querySelector('[data-feld="titel"]').addEventListener('change', (e) => {
+  wrapper.querySelector('[data-feld="titel"]').addEventListener('change', (e) => {
     vorlageAktualisieren(v.id, { titel: e.target.value });
   });
-  zeile.querySelector('[data-feld="phase"]').addEventListener('change', (e) => {
+  wrapper.querySelector('[data-feld="phase"]').addEventListener('change', (e) => {
     vorlageAktualisieren(v.id, { phase: e.target.value });
   });
-  zeile.querySelector('[data-toggle-aktiv]').addEventListener('click', () => {
+  wrapper.querySelector('[data-feld="beschreibung"]').addEventListener('change', (e) => {
+    vorlageAktualisieren(v.id, { beschreibung: e.target.value });
+  });
+  wrapper.querySelector('[data-toggle-aktiv]').addEventListener('click', () => {
     vorlageAktualisieren(v.id, { aktiv: !v.aktiv });
   });
 
-  return zeile;
+  return wrapper;
 }
 
 // --- Start -----------------------------------------------------------------
