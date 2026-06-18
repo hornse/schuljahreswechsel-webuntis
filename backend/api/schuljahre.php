@@ -10,7 +10,7 @@ use App\Response;
 
 function handleListSchuljahre(PDO $db): void
 {
-    Guard::requireLogin();
+    Guard::requireLogin($db);
     $rows = $db->query('SELECT id, label, aktiv, erstellt_am FROM schuljahre ORDER BY id DESC')->fetchAll();
     Response::json($rows);
 }
@@ -25,7 +25,7 @@ function handleListSchuljahre(PDO $db): void
  */
 function handleCreateSchuljahr(PDO $db, array $config, array $input): void
 {
-    Guard::requireAdmin();
+    Guard::requireAdmin($db);
 
     $label = trim((string) ($input['label'] ?? ''));
     if ($label === '') {
@@ -59,7 +59,7 @@ function handleCreateSchuljahr(PDO $db, array $config, array $input): void
 
 function handleActivateSchuljahr(PDO $db, array $config, array $input, array $params): void
 {
-    Guard::requireAdmin();
+    Guard::requireAdmin($db);
     $id = (int) $params['id'];
 
     $db->beginTransaction();

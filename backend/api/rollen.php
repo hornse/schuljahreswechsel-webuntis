@@ -12,7 +12,7 @@ use App\Response;
 
 function handleListRollen(PDO $db): void
 {
-    Guard::requireAdmin();
+    Guard::requireAdmin($db);
     $rows = $db->query(
         'SELECT webuntis_user, anzeigename, rolle, erstellt_am FROM benutzer_rollen ORDER BY anzeigename'
     )->fetchAll();
@@ -21,7 +21,7 @@ function handleListRollen(PDO $db): void
 
 function handleUpsertRolle(PDO $db, array $config, array $input): void
 {
-    Guard::requireAdmin();
+    Guard::requireAdmin($db);
 
     $username = trim((string) ($input['webuntis_user'] ?? ''));
     $rolle = (string) ($input['rolle'] ?? 'mitglied');

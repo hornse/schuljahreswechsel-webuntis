@@ -165,10 +165,20 @@ function renderLogin() {
 function renderChecklist() {
   const container = document.createElement('div');
 
+  // Abmelden muss immer möglich sein, auch bevor ein Schuljahr existiert -
+  // deshalb hier oben, statt erst im "es gibt schon Schritte"-Zweig unten.
+  const kopf = document.createElement('div');
+  kopf.className = 'top-leiste';
+  kopf.innerHTML = `<span></span><button class="btn btn-sekundaer" id="logout-btn">Abmelden</button>`;
+  kopf.querySelector('#logout-btn').addEventListener('click', doLogout);
+  container.appendChild(kopf);
+
   if (!STATE.schuljahrId) {
-    container.innerHTML = `<p>Es ist noch kein Schuljahr angelegt.${
-      STATE.user.rolle === 'admin' ? ' Lege unten eines an.' : ' Bitte eine Admin/einen Admin bitten.'
-    }</p>`;
+    const hinweis = document.createElement('p');
+    hinweis.textContent = STATE.user.rolle === 'admin'
+      ? 'Es ist noch kein Schuljahr angelegt. Lege unten eines an.'
+      : 'Es ist noch kein Schuljahr angelegt. Bitte eine Admin/einen Admin bitten.';
+    container.appendChild(hinweis);
     return container;
   }
 
@@ -176,18 +186,13 @@ function renderChecklist() {
   const erledigt = STATE.schritte.filter((s) => s.erledigt).length;
   const prozent = gesamt ? Math.round((erledigt / gesamt) * 100) : 0;
 
-  const top = document.createElement('div');
-  top.innerHTML = `
-    <div class="top-leiste">
-      <div class="progress-wrap" style="flex:1;">
-        <div class="progress-track"><div class="progress-fill" style="width:${prozent}%"></div></div>
-        <span class="progress-label">${erledigt} / ${gesamt}</span>
-      </div>
-      <button class="btn btn-sekundaer" id="logout-btn">Abmelden</button>
-    </div>
+  const fortschritt = document.createElement('div');
+  fortschritt.className = 'progress-wrap';
+  fortschritt.innerHTML = `
+    <div class="progress-track"><div class="progress-fill" style="width:${prozent}%"></div></div>
+    <span class="progress-label">${erledigt} / ${gesamt}</span>
   `;
-  top.querySelector('#logout-btn').addEventListener('click', doLogout);
-  container.appendChild(top);
+  container.appendChild(fortschritt);
 
   let aktuellePhase = null;
   for (const schritt of STATE.schritte) {

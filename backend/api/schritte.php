@@ -9,7 +9,7 @@ use App\Response;
 
 function handleListSchritte(PDO $db): void
 {
-    Guard::requireLogin();
+    Guard::requireLogin($db);
 
     $schuljahrId = $_GET['schuljahr_id'] ?? null;
     if ($schuljahrId === null) {
@@ -39,7 +39,7 @@ function handleListSchritte(PDO $db): void
 
 function handleUpdateSchritt(PDO $db, array $config, array $input, array $params): void
 {
-    $user = Guard::requireLogin();
+    $user = Guard::requireLogin($db);
     $id = (int) $params['id'];
 
     // Nur Text-/Datumsfelder generisch behandeln. "erledigt" braucht

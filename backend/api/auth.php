@@ -10,6 +10,7 @@
  */
 
 use App\Auth\WebUntisAuth;
+use App\Guard;
 use App\Response;
 use App\Session;
 
@@ -48,12 +49,9 @@ function handleLogout(): void
     Response::json(['ok' => true]);
 }
 
-function handleMe(): void
+function handleMe(PDO $db): void
 {
-    $user = Session::currentUser();
-    if ($user === null) {
-        Response::error('Nicht angemeldet.', 401);
-    }
+    $user = Guard::requireLogin($db);
     Response::json($user);
 }
 

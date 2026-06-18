@@ -45,9 +45,4 @@ final class Session
     {
         return $_SESSION['user'] ?? null;
     }
-
-    public static function isAdmin(): bool
-    {
-        return (self::currentUser()['rolle'] ?? null) === 'admin';
-    }
 }
