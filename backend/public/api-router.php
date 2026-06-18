@@ -16,9 +16,11 @@ require __DIR__ . '/../bootstrap.php';
 use App\Response;
 
 require __DIR__ . '/../api/auth.php';
+require __DIR__ . '/../api/dashboard.php';
 require __DIR__ . '/../api/schritte.php';
 require __DIR__ . '/../api/schuljahre.php';
 require __DIR__ . '/../api/rollen.php';
+require __DIR__ . '/../api/vorlagen.php';
 
 $route = trim((string) ($_GET['route'] ?? ''), '/');
 $method = $_SERVER['REQUEST_METHOD'];
@@ -36,6 +38,8 @@ $routes = [
     ['POST',  '#^api/logout$#',                            'handleLogout'],
     ['GET',   '#^api/me$#',                                'handleMe'],
 
+    ['GET',   '#^api/dashboard$#',                         'handleDashboard'],
+
     ['GET',   '#^api/schritte$#',                          'handleListSchritte'],
     ['PATCH', '#^api/schritte/(?P<id>\d+)$#',              'handleUpdateSchritt'],
 
@@ -45,6 +49,11 @@ $routes = [
 
     ['GET',   '#^api/rollen$#',                            'handleListRollen'],
     ['POST',  '#^api/rollen$#',                            'handleUpsertRolle'],
+
+    ['GET',   '#^api/vorlagen$#',                          'handleListVorlagen'],
+    ['POST',  '#^api/vorlagen$#',                          'handleCreateVorlage'],
+    ['PATCH', '#^api/vorlagen/(?P<id>\d+)$#',              'handleUpdateVorlage'],
+    ['POST',  '#^api/vorlagen/reihenfolge$#',              'handleReihenfolgeVorlagen'],
 ];
 
 foreach ($routes as [$routeMethod, $pattern, $handler]) {

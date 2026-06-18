@@ -6,29 +6,43 @@ Per Git (empfohlen, siehe Haupt-Gespräch zum Git-Workflow) oder einmalig
 per `scp`/`rsync`. Der Code darf irgendwo im Uberspace-Home liegen, z. B.
 `~/schuljahreswechsel-webuntis/`.
 
-## 2. Domain/Subdomain auf den richtigen Ordner zeigen lassen
+## 2. Domain einrichten und auf backend/public zeigen lassen
 
-Wichtig: **nicht** das Projektverzeichnis selbst, sondern
-`backend/public/` muss die Dokumentenwurzel sein - alles andere
-(Konfiguration, PHP-Quellcode, SQLite-Datei) bleibt damit für den
-Webserver unsichtbar.
-
-```
-uberspace web domain add swj.deine-domain.de
-uberspace web backend set swj.deine-domain.de --apache
-```
-
-Anschließend in der Uberspace-Dashboard/Konfiguration den Dokumentenwurzel-
-Pfad auf
+Wichtig, und beim ersten Mal leicht falsch zu machen: Uberspace liefert
+standardmäßig für **alle** Domains denselben Inhalt aus `~/html/` aus -
+auch ein Ordner *innerhalb* von `~/html/`, der wie eure neue Domain
+heißt, wird NICHT automatisch als eigener DocumentRoot erkannt. Der
+richtige Mechanismus dafür ("Additional DocumentRoots") ist ein
+Geschwisterordner bzw. Symlink **neben** `html/`, nicht darin:
 
 ```
-/home/DEIN_USER/schuljahreswechsel-webuntis/backend/public
+uberspace web domain add DEINE-SUBDOMAIN.deine-domain.de
 ```
 
-setzen (Uberspace nennt das je nach Version "Document Root" oder
-richtet es über eine `.htaccess`-Weiterleitung im Hauptverzeichnis ein -
-im Zweifel in der aktuellen Uberspace-Doku unter "Web Backends" nachsehen,
-das ändert sich gelegentlich).
+Da der Code per Git-Hook nach `/var/www/virtual/DEIN_USER/schuljahreswechsel-webuntis-src`
+ausgecheckt wird (siehe Hinweis unten zu Symlinks in `/home`), den Symlink
+direkt daneben anlegen:
+
+```
+cd /var/www/virtual/DEIN_USER
+ln -s schuljahreswechsel-webuntis-src/backend/public DEINE-SUBDOMAIN.deine-domain.de
+```
+
+**Warum nicht einfach `~/schuljahreswechsel-webuntis` im Home-Verzeichnis
+auschecken lassen?** Apache hat auf Uberspace keine Zugriffsrechte auf
+`/home` - ein Symlink von dort aus würde nie funktionieren, egal wie er
+benannt ist. Der Git-Hook (`~/repos/schuljahreswechsel-webuntis.git/hooks/post-receive`)
+muss daher direkt nach `/var/www/virtual/DEIN_USER/schuljahreswechsel-webuntis-src`
+auschecken:
+
+```
+GIT_WORK_TREE=/var/www/virtual/DEIN_USER/schuljahreswechsel-webuntis-src git checkout -f main
+```
+
+Zuletzt: für diesen DocumentRoot-Mechanismus verlangt die Uberspace-Doku
+eine `RewriteBase /`-Zeile ganz oben in der `.htaccess` - die ist bereits
+in `backend/public/.htaccess` enthalten, falls sie fehlt (z. B. nach
+einem manuellen Test), einfach ergänzen.
 
 ## 3. Konfiguration anlegen
 
@@ -59,18 +73,24 @@ Default der Fall, da PHP unter dem eigenen Uberspace-Benutzer läuft.
 
 ## 5. Erste:n Admin einrichten
 
-Es gibt bewusst keine Oberfläche, um den allerersten Admin zu bestimmen -
-sonst könnte sich theoretisch jeder selbst zum Admin machen. Stattdessen:
+Seit der Zugriffsbeschränkung aufs Untis/WebUntis-Team reicht ein
+korrektes WebUntis-Passwort allein nicht mehr aus, um sich anzumelden -
+die Person muss zusätzlich in `benutzer_rollen` stehen. Das betrifft auch
+die allererste Person: es gibt bewusst keine Oberfläche, um sich selbst
+freizuschalten, sonst könnte das jede:r mit einem WebUntis-Account tun.
 
-1. Mit den eigenen WebUntis-Zugangsdaten einmal ganz normal einloggen
-   (legt automatisch eine Zeile mit der Rolle "mitglied" an).
-2. Direkt per SQL zum Admin befördern:
-   ```
-   sqlite3 data/app.sqlite \
-     "UPDATE benutzer_rollen SET rolle = 'admin' WHERE webuntis_user = 'DEIN_KUERZEL';"
-   ```
-3. Neu laden - der Admin-Bereich erscheint unten auf der Seite. Weitere
-   Admins lassen sich danach ganz normal über die Oberfläche ernennen.
+Stattdessen den ersten Admin direkt per SQL eintragen, BEVOR diese Person
+sich zum ersten Mal anmeldet:
+
+```
+sqlite3 data/app.sqlite \
+  "INSERT INTO benutzer_rollen (webuntis_user, anzeigename, rolle) VALUES ('DEIN_KUERZEL', 'Dein Name', 'admin');"
+```
+
+Danach ganz normal mit den eigenen WebUntis-Zugangsdaten anmelden - der
+Admin-Bereich erscheint unten auf der Seite. Weitere Personen (admin oder
+mitglied) lassen sich danach über "Zugriff" → "Freigeben" in der
+Oberfläche eintragen, ganz ohne erneutes SQL.
 
 ## 6. Testen
 

@@ -5,15 +5,25 @@
 // Zustand, render() baut daraus jedes Mal die komplette #app-Ansicht neu auf.
 // Das ist für die Größe dieser App einfacher zu warten als ein "richtiges"
 // Reaktivitätssystem und entspricht dem Stil von Projektstunden NRW.
+//
+// Seit der Erweiterung um die öffentliche Landingpage gibt es zwei
+// Datenquellen für die Dashboard-Ansicht: STATE.publicDashboard (ohne
+// Login, reduzierte Felder - siehe backend/api/dashboard.php) und
+// STATE.schritte (nach Login, vollständige Felder). renderDashboard()
+// arbeitet bewusst mit beiden, je nachdem ob STATE.user gesetzt ist.
 // ============================================================================
 
 const STATE = {
-  user: null,        // { webuntis_user, anzeigename, rolle } oder null
-  schritte: [],       // aktuelle Checkliste
-  schuljahre: [],     // nur für Admins geladen
-  rollen: [],          // nur für Admins geladen
-  ansicht: 'checkliste', // 'checkliste' | 'dashboard'
+  user: null,             // { webuntis_user, anzeigename, rolle } oder null
+  schritte: [],            // volle Checkliste, nur nach Login geladen
+  schuljahre: [],          // nur für Admins geladen
+  rollen: [],               // nur für Admins geladen
+  vorlagen: [],              // nur für Admins geladen (Checklisten-Vorlage verwalten)
+  publicDashboard: null,      // { schuljahr_label, schritte } - immer geladen, kein Login nötig
+  ansicht: 'dashboard',        // 'dashboard' | 'checkliste' | 'login'
 };
+
+let dragZustand = null; // { id, phase } - während eines Drag-and-Drop-Vorgangs bei den Vorlagen
 
 const $app = document.getElementById('app');
 const $werBinIch = document.getElementById('wer-bin-ich');
@@ -58,16 +68,26 @@ async function checkAuth() {
 async function doLogin(username, password) {
   STATE.user = await api('/api/login', { method: 'POST', body: { username, password } });
   await ladeAlles();
+  STATE.ansicht = 'checkliste';
   render();
 }
 
 async function doLogout() {
   await api('/api/logout', { method: 'POST' });
   STATE.user = null;
+  STATE.schritte = [];
+  STATE.schuljahre = [];
+  STATE.rollen = [];
+  STATE.vorlagen = [];
+  STATE.ansicht = 'dashboard';
   render();
 }
 
 // --- Daten laden ---------------------------------------------------------
+async function ladeOeffentlichesDashboard() {
+  STATE.publicDashboard = await api('/api/dashboard');
+}
+
 async function ladeAlles() {
   const schritteRes = await api('/api/schritte');
   STATE.schritte = schritteRes.schritte;
@@ -76,6 +96,7 @@ async function ladeAlles() {
   if (STATE.user?.rolle === 'admin') {
     STATE.schuljahre = await api('/api/schuljahre');
     STATE.rollen = await api('/api/rollen');
+    STATE.vorlagen = await api('/api/vorlagen');
   }
 }
 
@@ -95,18 +116,41 @@ async function aktualisiereFeld(id, feld, wert) {
 async function neuesSchuljahr(label) {
   await api('/api/schuljahre', { method: 'POST', body: { label } });
   await ladeAlles();
+  await ladeOeffentlichesDashboard();
   render();
 }
 
 async function aktiviereSchuljahr(id) {
   await api(`/api/schuljahre/${id}/aktivieren`, { method: 'POST' });
   await ladeAlles();
+  await ladeOeffentlichesDashboard();
   render();
 }
 
 async function setzeRolle(webuntis_user, rolle, anzeigename) {
   await api('/api/rollen', { method: 'POST', body: { webuntis_user, rolle, anzeigename } });
   await ladeAlles();
+  render();
+}
+
+async function neueVorlage(phase, titel) {
+  await api('/api/vorlagen', { method: 'POST', body: { phase, titel } });
+  await ladeAlles();
+  await ladeOeffentlichesDashboard();
+  render();
+}
+
+async function vorlageAktualisieren(id, felder) {
+  await api(`/api/vorlagen/${id}`, { method: 'PATCH', body: felder });
+  await ladeAlles();
+  await ladeOeffentlichesDashboard();
+  render();
+}
+
+async function reihenfolgeAendern(phase, vorlage_ids) {
+  await api('/api/vorlagen/reihenfolge', { method: 'POST', body: { phase, vorlage_ids } });
+  await ladeAlles();
+  await ladeOeffentlichesDashboard();
   render();
 }
 
@@ -120,15 +164,17 @@ function render() {
     : '';
 
   $app.innerHTML = '';
-  if (!STATE.user) {
+  $app.appendChild(renderKopfleiste());
+
+  if (STATE.ansicht === 'login') {
     $app.appendChild(renderLogin());
-    return;
+  } else if (STATE.ansicht === 'checkliste' && STATE.user) {
+    $app.appendChild(renderChecklist());
+  } else {
+    $app.appendChild(renderDashboard());
   }
 
-  $app.appendChild(renderKopfleiste());
-  $app.appendChild(STATE.ansicht === 'dashboard' ? renderDashboard() : renderChecklist());
-
-  if (STATE.user.rolle === 'admin') {
+  if (STATE.user?.rolle === 'admin') {
     $app.appendChild(renderAdminBereich());
   }
 }
@@ -136,20 +182,42 @@ function render() {
 function renderKopfleiste() {
   const leiste = document.createElement('div');
   leiste.className = 'top-leiste';
-  leiste.innerHTML = `
-    <div class="tabs">
-      <button class="tab ${STATE.ansicht !== 'dashboard' ? 'aktiv' : ''}" data-ansicht="checkliste">Checkliste</button>
+
+  let tabsHtml;
+  let rechtsHtml;
+
+  if (STATE.user) {
+    tabsHtml = `
       <button class="tab ${STATE.ansicht === 'dashboard' ? 'aktiv' : ''}" data-ansicht="dashboard">Dashboard</button>
-    </div>
-    <button class="btn btn-sekundaer" id="logout-btn">Abmelden</button>
-  `;
+      <button class="tab ${STATE.ansicht === 'checkliste' ? 'aktiv' : ''}" data-ansicht="checkliste">Checkliste</button>
+    `;
+    rechtsHtml = `<button class="btn btn-sekundaer" id="logout-btn">Abmelden</button>`;
+  } else if (STATE.ansicht === 'login') {
+    tabsHtml = `<button class="tab" data-ansicht="dashboard">Dashboard</button>`;
+    rechtsHtml = `<button class="btn btn-sekundaer" id="abbrechen-btn">Abbrechen</button>`;
+  } else {
+    tabsHtml = `<button class="tab aktiv" data-ansicht="dashboard">Dashboard</button>`;
+    rechtsHtml = `<button class="btn btn-sekundaer" id="anmelden-btn">Anmelden</button>`;
+  }
+
+  leiste.innerHTML = `<div class="tabs">${tabsHtml}</div>${rechtsHtml}`;
+
   leiste.querySelectorAll('[data-ansicht]').forEach((btn) => {
     btn.addEventListener('click', () => {
       STATE.ansicht = btn.dataset.ansicht;
       render();
     });
   });
-  leiste.querySelector('#logout-btn').addEventListener('click', doLogout);
+  leiste.querySelector('#logout-btn')?.addEventListener('click', doLogout);
+  leiste.querySelector('#anmelden-btn')?.addEventListener('click', () => {
+    STATE.ansicht = 'login';
+    render();
+  });
+  leiste.querySelector('#abbrechen-btn')?.addEventListener('click', () => {
+    STATE.ansicht = 'dashboard';
+    render();
+  });
+
   return leiste;
 }
 
@@ -158,7 +226,8 @@ function renderLogin() {
   wrapper.className = 'login-box';
   wrapper.innerHTML = `
     <p style="font-size:13px;color:var(--muted);margin-top:0;">
-      Anmeldung mit den gewohnten WebUntis-Zugangsdaten.
+      Anmeldung mit den gewohnten WebUntis-Zugangsdaten - nur für freigegebene
+      Personen (Untis/WebUntis-Team).
     </p>
     <div id="login-fehler"></div>
     <form id="login-form">
@@ -226,121 +295,6 @@ function renderChecklist() {
   return container;
 }
 
-// ============================================================================
-// Dashboard ("was ist gerade dran")
-// ============================================================================
-// Bewusst ohne eigenen API-Endpunkt - bei der Hand voll Schritte reicht es,
-// das auf Basis der schon geladenen STATE.schritte im Browser zu berechnen.
-// "Aktuell dran" = der erste noch offene Schritt in der festgelegten
-// Reihenfolge (Phase 1 -> 5), unabhängig vom optionalen Datumsfeld - die
-// Schritte sind sequenziell gedacht. Das Datumsfeld fließt zusätzlich in
-// die Listen "Überfällig"/"Demnächst" ein, für alle, die ein Datum
-// eingetragen haben.
-
-function heuteISO() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function inNTagenISO(n) {
-  const d = new Date();
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
-function formatDatum(iso) {
-  const [, monat, tag] = iso.split('-');
-  return `${tag}.${monat}.`;
-}
-
-function berechneDashboardDaten() {
-  const heute = heuteISO();
-  const in14Tagen = inNTagenISO(14);
-
-  const offen = STATE.schritte.filter((s) => !s.erledigt);
-  const aktuell = offen[0] ?? null;
-
-  const ueberfaellig = offen
-    .filter((s) => s.geplantes_datum && s.geplantes_datum < heute)
-    .sort((a, b) => a.geplantes_datum.localeCompare(b.geplantes_datum));
-
-  const demnaechst = offen
-    .filter((s) => s.geplantes_datum && s.geplantes_datum >= heute && s.geplantes_datum <= in14Tagen)
-    .sort((a, b) => a.geplantes_datum.localeCompare(b.geplantes_datum));
-
-  const phasen = new Map();
-  for (const s of STATE.schritte) {
-    if (!phasen.has(s.phase)) {
-      phasen.set(s.phase, { farbe: s.phase_farbe, gesamt: 0, erledigt: 0 });
-    }
-    const eintrag = phasen.get(s.phase);
-    eintrag.gesamt += 1;
-    if (s.erledigt) eintrag.erledigt += 1;
-  }
-
-  return { aktuell, ueberfaellig, demnaechst, phasen };
-}
-
-function renderDashboard() {
-  const container = document.createElement('div');
-
-  if (!STATE.schuljahrId || STATE.schritte.length === 0) {
-    container.innerHTML = '<p>Es ist noch kein Schuljahr angelegt.</p>';
-    return container;
-  }
-
-  const { aktuell, ueberfaellig, demnaechst, phasen } = berechneDashboardDaten();
-
-  const aktuellBlock = document.createElement('div');
-  aktuellBlock.className = 'dash-block dash-aktuell';
-  aktuellBlock.style.setProperty('--accent', aktuell?.phase_farbe ?? 'var(--accent-default)');
-  aktuellBlock.innerHTML = aktuell
-    ? `
-      <p class="dash-label">Aktuell dran</p>
-      <p class="dash-titel" style="color:${aktuell.phase_farbe}">${aktuell.titel}</p>
-      <p class="dash-meta">${aktuell.phase} · ${aktuell.verantwortlich_anzeigename || 'noch niemand zugewiesen'}</p>
-    `
-    : `<p class="dash-label">Aktuell dran</p><p class="dash-titel">Alles erledigt 🎉</p>`;
-  container.appendChild(aktuellBlock);
-
-  if (ueberfaellig.length) {
-    container.appendChild(renderDashListe('Überfällig', ueberfaellig, true));
-  }
-  if (demnaechst.length) {
-    container.appendChild(renderDashListe('Demnächst (14 Tage)', demnaechst, false));
-  }
-
-  const phasenBlock = document.createElement('div');
-  phasenBlock.className = 'dash-block';
-  phasenBlock.innerHTML = '<p class="dash-label">Fortschritt je Phase</p>';
-  for (const [phase, daten] of phasen) {
-    const prozent = daten.gesamt ? Math.round((daten.erledigt / daten.gesamt) * 100) : 0;
-    const zeile = document.createElement('div');
-    zeile.className = 'dash-phasenzeile';
-    zeile.innerHTML = `
-      <span class="dash-phasenname" style="color:${daten.farbe}">${phase}</span>
-      <div class="progress-track" style="flex:1;"><div class="progress-fill" style="width:${prozent}%;background:${daten.farbe}"></div></div>
-      <span class="progress-label">${daten.erledigt}/${daten.gesamt}</span>
-    `;
-    phasenBlock.appendChild(zeile);
-  }
-  container.appendChild(phasenBlock);
-
-  return container;
-}
-
-function renderDashListe(titel, liste, istUeberfaellig) {
-  const block = document.createElement('div');
-  block.className = 'dash-block';
-  const items = liste.map((s) => `
-    <li>
-      <span class="dash-datum ${istUeberfaellig ? 'dash-datum-rot' : ''}">${formatDatum(s.geplantes_datum)}</span>
-      <span>${s.titel}</span>
-    </li>
-  `).join('');
-  block.innerHTML = `<p class="dash-label">${titel}</p><ul class="dash-liste">${items}</ul>`;
-  return block;
-}
-
 function renderSchritt(schritt) {
   const el = document.createElement('div');
   el.className = 'schritt' + (schritt.erledigt ? ' erledigt' : '');
@@ -384,12 +338,158 @@ function renderSchritt(schritt) {
   return el;
 }
 
+// ============================================================================
+// Dashboard ("was ist gerade dran") - öffentlich UND eingeloggt
+// ============================================================================
+// Bewusst ohne eigenen zusätzlichen API-Endpunkt für die Berechnung selbst -
+// das passiert im Browser auf Basis der schon geladenen Daten. Ohne Login
+// kommen die (reduzierten) Daten aus STATE.publicDashboard, mit Login aus
+// STATE.schritte (volle Felder, u. a. "Verantwortlich"). "Aktuell dran" =
+// der erste noch offene Schritt in der festgelegten Reihenfolge, unabhängig
+// vom optionalen Datumsfeld. Das Datumsfeld fließt zusätzlich in die Listen
+// "Überfällig"/"Demnächst" ein, für alle, die ein Datum eingetragen haben.
+
+function heuteISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function inNTagenISO(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatDatum(iso) {
+  const [, monat, tag] = iso.split('-');
+  return `${tag}.${monat}.`;
+}
+
+function berechneDashboardDaten(liste) {
+  const heute = heuteISO();
+  const in14Tagen = inNTagenISO(14);
+
+  const offen = liste.filter((s) => !s.erledigt);
+  const aktuell = offen[0] ?? null;
+
+  const ueberfaellig = offen
+    .filter((s) => s.geplantes_datum && s.geplantes_datum < heute)
+    .sort((a, b) => a.geplantes_datum.localeCompare(b.geplantes_datum));
+
+  const demnaechst = offen
+    .filter((s) => s.geplantes_datum && s.geplantes_datum >= heute && s.geplantes_datum <= in14Tagen)
+    .sort((a, b) => a.geplantes_datum.localeCompare(b.geplantes_datum));
+
+  const phasen = new Map();
+  for (const s of liste) {
+    if (!phasen.has(s.phase)) {
+      phasen.set(s.phase, { farbe: s.phase_farbe, gesamt: 0, erledigt: 0 });
+    }
+    const eintrag = phasen.get(s.phase);
+    eintrag.gesamt += 1;
+    if (s.erledigt) eintrag.erledigt += 1;
+  }
+
+  return { aktuell, ueberfaellig, demnaechst, phasen };
+}
+
+function renderDashboard() {
+  const container = document.createElement('div');
+  const eingeloggt = !!STATE.user;
+  const liste = eingeloggt ? STATE.schritte : (STATE.publicDashboard?.schritte ?? []);
+
+  if (!eingeloggt && STATE.publicDashboard?.schuljahr_label) {
+    const ueberschrift = document.createElement('p');
+    ueberschrift.className = 'dash-schuljahr';
+    ueberschrift.textContent = `Schuljahreswechsel ${STATE.publicDashboard.schuljahr_label}`;
+    container.appendChild(ueberschrift);
+  }
+
+  if (liste.length === 0) {
+    const hinweis = document.createElement('p');
+    hinweis.textContent = eingeloggt && STATE.user.rolle === 'admin'
+      ? 'Aktuell ist kein Schuljahreswechsel im Gange. Lege unten eines an.'
+      : 'Aktuell ist kein Schuljahreswechsel im Gange.';
+    container.appendChild(hinweis);
+    return container;
+  }
+
+  const { aktuell, ueberfaellig, demnaechst, phasen } = berechneDashboardDaten(liste);
+
+  const aktuellBlock = document.createElement('div');
+  aktuellBlock.className = 'dash-block dash-aktuell';
+  aktuellBlock.style.setProperty('--accent', aktuell?.phase_farbe ?? 'var(--accent-default)');
+  if (aktuell) {
+    // "Verantwortlich" existiert nur in den vollen (eingeloggten) Daten.
+    const metaTeile = [aktuell.phase];
+    if (aktuell.verantwortlich_anzeigename !== undefined) {
+      metaTeile.push(aktuell.verantwortlich_anzeigename || 'noch niemand zugewiesen');
+    }
+    aktuellBlock.innerHTML = `
+      <p class="dash-label">Aktuell dran</p>
+      <p class="dash-titel" style="color:${aktuell.phase_farbe}">${aktuell.titel}</p>
+      <p class="dash-meta">${metaTeile.join(' · ')}</p>
+    `;
+  } else {
+    aktuellBlock.innerHTML = `<p class="dash-label">Aktuell dran</p><p class="dash-titel">Alles erledigt 🎉</p>`;
+  }
+  container.appendChild(aktuellBlock);
+
+  if (ueberfaellig.length) {
+    container.appendChild(renderDashListe('Überfällig', ueberfaellig, true));
+  }
+  if (demnaechst.length) {
+    container.appendChild(renderDashListe('Demnächst (14 Tage)', demnaechst, false));
+  }
+
+  const phasenBlock = document.createElement('div');
+  phasenBlock.className = 'dash-block';
+  phasenBlock.innerHTML = '<p class="dash-label">Fortschritt je Phase</p>';
+  for (const [phase, daten] of phasen) {
+    const prozent = daten.gesamt ? Math.round((daten.erledigt / daten.gesamt) * 100) : 0;
+    const zeile = document.createElement('div');
+    zeile.className = 'dash-phasenzeile';
+    zeile.innerHTML = `
+      <span class="dash-phasenname" style="color:${daten.farbe}">${phase}</span>
+      <div class="progress-track" style="flex:1;"><div class="progress-fill" style="width:${prozent}%;background:${daten.farbe}"></div></div>
+      <span class="progress-label">${daten.erledigt}/${daten.gesamt}</span>
+    `;
+    phasenBlock.appendChild(zeile);
+  }
+  container.appendChild(phasenBlock);
+
+  return container;
+}
+
+function renderDashListe(titel, liste, istUeberfaellig) {
+  const block = document.createElement('div');
+  block.className = 'dash-block';
+  const items = liste.map((s) => `
+    <li>
+      <span class="dash-datum ${istUeberfaellig ? 'dash-datum-rot' : ''}">${formatDatum(s.geplantes_datum)}</span>
+      <span>${s.titel}</span>
+    </li>
+  `).join('');
+  block.innerHTML = `<p class="dash-label">${titel}</p><ul class="dash-liste">${items}</ul>`;
+  return block;
+}
+
+// ============================================================================
+// Admin-Bereich
+// ============================================================================
+
 function renderAdminBereich() {
   const container = document.createElement('div');
   container.className = 'admin-bereich';
   container.innerHTML = `<h2>Admin-Bereich</h2>`;
 
-  // --- Schuljahre ---
+  container.appendChild(renderSchuljahreBlock());
+  container.appendChild(renderZugriffBlock());
+  container.appendChild(renderVorlagenVerwaltung());
+
+  return container;
+}
+
+function renderSchuljahreBlock() {
   const sjBlock = document.createElement('div');
   sjBlock.innerHTML = `
     <h3 style="font-size:13px;color:var(--muted);">Schuljahre</h3>
@@ -418,9 +518,10 @@ function renderAdminBereich() {
     const label = sjBlock.querySelector('#neues-schuljahr-label').value.trim();
     if (label) neuesSchuljahr(label);
   });
-  container.appendChild(sjBlock);
+  return sjBlock;
+}
 
-  // --- Rollen ---
+function renderZugriffBlock() {
   const rollenBlock = document.createElement('div');
   rollenBlock.innerHTML = `
     <h3 style="font-size:13px;color:var(--muted);margin-top:24px;">Zugriff</h3>
@@ -441,8 +542,22 @@ function renderAdminBereich() {
         `).join('')}
       </tbody>
     </table>
+    <form class="inline-form" id="neue-person-form">
+      <div class="feld"><label>WebUntis-Kürzel</label><input type="text" id="neue-person-user" required></div>
+      <div class="feld"><label>Anzeigename</label><input type="text" id="neue-person-name"></div>
+      <div class="feld"><label>Rolle</label>
+        <select id="neue-person-rolle">
+          <option value="mitglied">mitglied</option>
+          <option value="admin">admin</option>
+        </select>
+      </div>
+      <button class="btn" type="submit" style="width:auto;">Freigeben</button>
+    </form>
     <p style="font-size:12px;color:var(--muted);">
-      Neue Personen erscheinen hier automatisch nach ihrem ersten Login (Rolle "mitglied").
+      Nur Personen in dieser Liste können sich überhaupt anmelden - ein
+      korrektes WebUntis-Passwort allein reicht nicht mehr. Vor dem ersten
+      Login einer Person hier "Freigeben" benutzen, danach lässt sich ihre
+      Rolle jederzeit über das Auswahlfeld ändern.
     </p>
   `;
   rollenBlock.querySelectorAll('select[data-rolle-user]').forEach((select) => {
@@ -450,13 +565,134 @@ function renderAdminBereich() {
       setzeRolle(select.dataset.rolleUser, select.value, select.dataset.rolleName);
     });
   });
-  container.appendChild(rollenBlock);
+  rollenBlock.querySelector('#neue-person-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const webuntis_user = rollenBlock.querySelector('#neue-person-user').value.trim();
+    const anzeigename = rollenBlock.querySelector('#neue-person-name').value.trim();
+    const rolle = rollenBlock.querySelector('#neue-person-rolle').value;
+    if (webuntis_user) setzeRolle(webuntis_user, rolle, anzeigename || webuntis_user);
+  });
+  return rollenBlock;
+}
 
-  return container;
+// --- Checklisten-Vorlage verwalten (Drag-and-Drop innerhalb einer Phase) ---
+
+function renderVorlagenVerwaltung() {
+  const block = document.createElement('div');
+  block.innerHTML = '<h3 style="font-size:13px;color:var(--muted);margin-top:24px;">Checkliste verwalten</h3>';
+
+  const phasenNamen = [...new Set(STATE.vorlagen.map((v) => v.phase))];
+
+  for (const phase of phasenNamen) {
+    const gruppe = STATE.vorlagen.filter((v) => v.phase === phase).sort((a, b) => a.reihenfolge - b.reihenfolge);
+    const farbe = gruppe[0]?.phase_farbe ?? '#5B6FA8';
+
+    const phasenBlock = document.createElement('div');
+    phasenBlock.innerHTML = `<p class="phase-title" style="color:${farbe};margin-top:14px;">${phase}</p>`;
+
+    const liste = document.createElement('div');
+    liste.className = 'vorlagen-liste';
+
+    for (const v of gruppe) {
+      liste.appendChild(renderVorlagenZeile(v, phasenNamen));
+    }
+
+    liste.addEventListener('dragover', (e) => e.preventDefault());
+    liste.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (!dragZustand || dragZustand.phase !== phase) {
+        return; // kein phasenübergreifendes Drag-and-Drop - siehe Kommentar im Backend
+      }
+      const zielEl = e.target.closest('[data-vorlage-id]');
+      const aktuelleIds = gruppe.map((v) => v.id);
+      const ohneGezogenen = aktuelleIds.filter((id) => id !== dragZustand.id);
+
+      let neueReihe;
+      if (zielEl) {
+        const zielId = Number(zielEl.dataset.vorlageId);
+        const zielIndex = ohneGezogenen.indexOf(zielId);
+        neueReihe = zielIndex === -1
+          ? [...ohneGezogenen, dragZustand.id]
+          : [...ohneGezogenen.slice(0, zielIndex), dragZustand.id, ...ohneGezogenen.slice(zielIndex)];
+      } else {
+        neueReihe = [...ohneGezogenen, dragZustand.id];
+      }
+      reihenfolgeAendern(phase, neueReihe);
+    });
+
+    phasenBlock.appendChild(liste);
+    block.appendChild(phasenBlock);
+  }
+
+  const neuerSchrittForm = document.createElement('form');
+  neuerSchrittForm.className = 'inline-form';
+  neuerSchrittForm.style.marginTop = '14px';
+  neuerSchrittForm.innerHTML = `
+    <div class="feld"><label>Phase</label>
+      <select id="neuer-schritt-phase">
+        ${phasenNamen.map((p) => `<option value="${p}">${p}</option>`).join('')}
+      </select>
+    </div>
+    <div class="feld" style="flex:1;"><label>Neuer Schritt</label><input type="text" id="neuer-schritt-titel" required style="width:100%;"></div>
+    <button class="btn" type="submit" style="width:auto;">Hinzufügen</button>
+  `;
+  neuerSchrittForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const phase = neuerSchrittForm.querySelector('#neuer-schritt-phase').value;
+    const titel = neuerSchrittForm.querySelector('#neuer-schritt-titel').value.trim();
+    if (titel) neueVorlage(phase, titel);
+  });
+  block.appendChild(neuerSchrittForm);
+
+  const hinweis = document.createElement('p');
+  hinweis.style.cssText = 'font-size:12px;color:var(--muted);margin-top:8px;';
+  hinweis.textContent = 'Zum Umsortieren innerhalb einer Phase per Drag-and-Drop am Griff (⠿) ziehen. '
+    + 'Phasenwechsel über das Auswahlfeld in der Zeile. Neue/geänderte Schritte wirken sich sofort auf das aktuell laufende Schuljahr aus.';
+  block.appendChild(hinweis);
+
+  return block;
+}
+
+function renderVorlagenZeile(v, phasenNamen) {
+  const zeile = document.createElement('div');
+  zeile.className = 'vorlagen-zeile' + (v.aktiv ? '' : ' inaktiv');
+  zeile.draggable = true;
+  zeile.dataset.vorlageId = v.id;
+
+  zeile.innerHTML = `
+    <span class="zieh-griff" title="Ziehen zum Umsortieren">⠿</span>
+    <input type="text" class="vorlagen-titel-feld" value="${v.titel}" data-feld="titel">
+    <select class="vorlagen-phase-feld" data-feld="phase">
+      ${phasenNamen.map((p) => `<option value="${p}" ${p === v.phase ? 'selected' : ''}>${p}</option>`).join('')}
+    </select>
+    <button class="btn-sekundaer btn" data-toggle-aktiv style="width:auto;">${v.aktiv ? 'deaktivieren' : 'reaktivieren'}</button>
+  `;
+
+  zeile.addEventListener('dragstart', () => {
+    dragZustand = { id: v.id, phase: v.phase };
+    zeile.classList.add('wird-gezogen');
+  });
+  zeile.addEventListener('dragend', () => {
+    zeile.classList.remove('wird-gezogen');
+    dragZustand = null;
+  });
+
+  zeile.querySelector('[data-feld="titel"]').addEventListener('change', (e) => {
+    vorlageAktualisieren(v.id, { titel: e.target.value });
+  });
+  zeile.querySelector('[data-feld="phase"]').addEventListener('change', (e) => {
+    vorlageAktualisieren(v.id, { phase: e.target.value });
+  });
+  zeile.querySelector('[data-toggle-aktiv]').addEventListener('click', () => {
+    vorlageAktualisieren(v.id, { aktiv: !v.aktiv });
+  });
+
+  return zeile;
 }
 
 // --- Start -----------------------------------------------------------------
 (async function start() {
+  await ladeOeffentlichesDashboard();
   await checkAuth();
   if (STATE.user) {
     await ladeAlles();

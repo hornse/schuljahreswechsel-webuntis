@@ -4,9 +4,12 @@
  * Endpunkte: POST /api/login, POST /api/logout, GET /api/me
  *
  * Die eigentliche Passwortprüfung steckt komplett in
- * App\Auth\WebUntisAuth - hier wird nur die HTTP-Schicht drumherum gebaut
- * und beim ersten erfolgreichen Login automatisch eine Rollen-Zeile
- * angelegt (Standardrolle: 'mitglied').
+ * App\Auth\WebUntisAuth - hier kommt zusätzlich die Freigabe-Liste dazu:
+ * ein korrektes WebUntis-Passwort allein reicht NICHT mehr aus, die
+ * Person muss zusätzlich schon in benutzer_rollen stehen (von einem
+ * Admin vorab eingetragen, siehe api/rollen.php). Das ist die bewusste
+ * Umstellung von "jede Lehrkraft kann sich einloggen" auf "nur das
+ * Untis/WebUntis-Team".
  */
 
 use App\Auth\WebUntisAuth;
@@ -25,13 +28,28 @@ function handleLogin(PDO $db, array $config, array $input): void
 
     if ($result === null) {
         // Bewusst eine einzige, unspezifische Meldung für "falsches
-        // Passwort", "falsche Rolle" und "zu viele Versuche" - Details
-        // stehen im login_log, sollen aber nicht an den Client verraten
-        // werden (kein Username-Enumeration- bzw. Rollen-Leak).
+        // Passwort", "falsche Rolle (z. B. Schüler)" und "zu viele
+        // Versuche" - Details stehen im login_log, sollen aber nicht an
+        // den Client verraten werden (kein Username-Enumeration-Leak).
         Response::error('Anmeldung nicht möglich. Bitte Zugangsdaten prüfen.', 401);
     }
 
-    $rolle = ensureBenutzerRolle($db, $result['username']);
+    $rolle = findeBenutzerRolle($db, $result['username']);
+
+    if ($rolle === null) {
+        // Anders als oben: hier DARF die Meldung spezifisch sein. Das
+        // Passwort war korrekt, es geht nicht um ein Geheimnis, sondern
+        // um eine bewusste Zugriffsbeschränkung, die die Person ruhig
+        // verstehen darf.
+        protokolliereLoginVersuch($db, $result['username'], false, 'nicht_freigegeben', $ip);
+        Response::error(
+            'Diese App ist nur für freigegebene Personen (Untis/WebUntis-Team) nutzbar. '
+            . 'Bitte eine Admin/einen Admin um Freischaltung bitten.',
+            403
+        );
+    }
+
+    protokolliereLoginVersuch($db, $result['username'], true, null, $ip);
 
     $user = [
         'webuntis_user' => $result['username'],
@@ -56,27 +74,27 @@ function handleMe(PDO $db): void
 }
 
 /**
- * Holt die Rollen-Zeile zu einem WebUntis-Benutzernamen oder legt sie mit
- * der Standardrolle 'mitglied' an, falls sich diese Person zum ersten Mal
- * anmeldet. Niemand wird allein durch Einloggen automatisch Admin - das
- * muss explizit über POST /api/rollen durch einen bestehenden Admin
- * passieren (siehe docs/BENUTZERHANDBUCH.md, Abschnitt "Erste:n Admin
- * einrichten").
+ * Liest die Rollen-Zeile zu einem WebUntis-Benutzernamen, OHNE sie bei
+ * Fehlen automatisch anzulegen (das war das alte Verhalten - siehe Git-
+ * Historie). Eine Person muss jetzt VOR ihrem ersten Login von einem
+ * Admin in "Zugriff verwalten" eingetragen werden.
  */
-function ensureBenutzerRolle(PDO $db, string $username): array
+function findeBenutzerRolle(PDO $db, string $username): ?array
 {
     $stmt = $db->prepare('SELECT anzeigename, rolle FROM benutzer_rollen WHERE webuntis_user = :u');
     $stmt->execute([':u' => $username]);
     $row = $stmt->fetch();
+    return $row === false ? null : $row;
+}
 
-    if ($row) {
-        return $row;
-    }
-
-    $insert = $db->prepare(
-        'INSERT INTO benutzer_rollen (webuntis_user, anzeigename, rolle) VALUES (:u, :u, \'mitglied\')'
-    );
-    $insert->execute([':u' => $username]);
-
-    return ['anzeigename' => $username, 'rolle' => 'mitglied'];
+/**
+ * Ergänzt login_log auch für den Fall "WebUntis-Login korrekt, aber
+ * nicht freigegeben" - WebUntisAuth kennt diesen Grund nicht, weil die
+ * Freigabe-Prüfung eine Ebene höher (hier) passiert.
+ */
+function protokolliereLoginVersuch(PDO $db, string $username, bool $erfolgreich, ?string $grund, string $ip): void
+{
+    $db->prepare(
+        'INSERT INTO login_log (webuntis_user, erfolgreich, grund, ip) VALUES (:u, :e, :g, :ip)'
+    )->execute([':u' => $username, ':e' => $erfolgreich ? 1 : 0, ':g' => $grund, ':ip' => $ip]);
 }
