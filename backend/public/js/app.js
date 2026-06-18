@@ -25,6 +25,99 @@ const STATE = {
 
 let dragZustand = null; // { id, phase } - während eines Drag-and-Drop-Vorgangs bei den Vorlagen
 
+// ============================================================================
+// Minimaler Markdown-Renderer für das Notizfeld ("weiterführende Infos")
+// ============================================================================
+// Bewusst kein externes Markdown-Paket (passt zur Build-losen, abhängigkeits-
+// freien Philosophie dieser App) und bewusst keine vollständige Markdown-
+// Implementierung, sondern nur das, was angefragt wurde: Fett, Kursiv,
+// Aufzählung, nummerierte Liste, Links.
+//
+// WICHTIG für die Sicherheit: der Text wird ZUERST als reiner Text escaped
+// (< > & werden zu Entities) und ERST DANACH werden die Markdown-Regeln
+// angewendet, die selbst nur eng begrenzte, fest vorgegebene HTML-Tags
+// einfügen. Andernfalls könnte jemand über dieses Feld eigenes HTML/JS
+// einschleusen, das anderen eingeloggten Personen angezeigt würde.
+
+function inlineFormatierung(text) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/_(.+?)_/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\[(.+?)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+}
+
+function markdownZuHtml(text) {
+  if (!text) return '';
+
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  const zeilen = escaped.split('\n');
+  const ausgabe = [];
+  let listenArt = null; // 'ul' | 'ol' | null
+
+  function listeSchliessen() {
+    if (listenArt) {
+      ausgabe.push(`</${listenArt}>`);
+      listenArt = null;
+    }
+  }
+
+  for (const zeile of zeilen) {
+    const ulMatch = zeile.match(/^[-*]\s+(.*)/);
+    const olMatch = zeile.match(/^\d+\.\s+(.*)/);
+
+    if (ulMatch) {
+      if (listenArt !== 'ul') { listeSchliessen(); ausgabe.push('<ul>'); listenArt = 'ul'; }
+      ausgabe.push(`<li>${inlineFormatierung(ulMatch[1])}</li>`);
+    } else if (olMatch) {
+      if (listenArt !== 'ol') { listeSchliessen(); ausgabe.push('<ol>'); listenArt = 'ol'; }
+      ausgabe.push(`<li>${inlineFormatierung(olMatch[1])}</li>`);
+    } else {
+      listeSchliessen();
+      ausgabe.push(zeile.trim() === '' ? '<br>' : `<p style="margin:0 0 6px;">${inlineFormatierung(zeile)}</p>`);
+    }
+  }
+  listeSchliessen();
+
+  return ausgabe.join('\n');
+}
+
+/**
+ * Fügt Markdown-Syntax an der Cursor-Position/Auswahl eines Textfelds ein
+ * (für die Formatierungs-Buttons). Bei "umschliessen" wird die Auswahl in
+ * Praefix/Suffix eingepackt (z. B. **...** für Fett). Bei "zeilenPraefix"
+ * wird jede betroffene Zeile mit dem Präfix versehen (für Listen).
+ */
+function textareaFormatierungEinfuegen(textarea, { umschliessen, zeilenPraefix } = {}) {
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+
+  if (zeilenPraefix) {
+    const zeilenStart = textarea.value.lastIndexOf('\n', start - 1) + 1;
+    let zeilenEnde = textarea.value.indexOf('\n', end);
+    if (zeilenEnde === -1) zeilenEnde = textarea.value.length;
+
+    const block = textarea.value.slice(zeilenStart, zeilenEnde);
+    const neuerBlock = block.split('\n').map((z) => (z.startsWith(zeilenPraefix) ? z : zeilenPraefix + z)).join('\n');
+
+    textarea.value = textarea.value.slice(0, zeilenStart) + neuerBlock + textarea.value.slice(zeilenEnde);
+    textarea.focus();
+    textarea.setSelectionRange(zeilenStart, zeilenStart + neuerBlock.length);
+  } else {
+    const ausgewaehlt = textarea.value.slice(start, end) || 'Text';
+    textarea.value = textarea.value.slice(0, start) + umschliessen + ausgewaehlt + umschliessen + textarea.value.slice(end);
+    textarea.focus();
+    textarea.setSelectionRange(start + umschliessen.length, start + umschliessen.length + ausgewaehlt.length);
+  }
+
+  textarea.dispatchEvent(new Event('input'));
+}
+
 const $app = document.getElementById('app');
 const $werBinIch = document.getElementById('wer-bin-ich');
 
@@ -307,7 +400,7 @@ function renderSchritt(schritt) {
       <span class="chev" data-rolle="chevron">▸</span>
     </div>
     <div class="schritt-detail" data-rolle="detail">
-      <p class="detail-text">${schritt.beschreibung ?? ''}</p>
+      <div class="detail-text">${markdownZuHtml(schritt.beschreibung)}</div>
       <div class="felder">
         <div class="feld"><label>Verantwortlich</label>
           <input type="text" data-feld="verantwortlich_anzeigename" value="${schritt.verantwortlich_anzeigename ?? ''}">
@@ -673,9 +766,46 @@ function renderVorlagenZeile(v, phasenNamen) {
       <label style="font-size:10.5px;color:var(--muted);display:block;margin-bottom:4px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.04em;">
         Weiterführende Infos (nur für angemeldete Personen sichtbar)
       </label>
+      <div class="md-toolbar">
+        <button type="button" data-md="fett" title="Fett"><strong>F</strong></button>
+        <button type="button" data-md="kursiv" title="Kursiv"><em>K</em></button>
+        <button type="button" data-md="liste" title="Aufzählung">• Liste</button>
+        <button type="button" data-md="nummeriert" title="Nummerierte Liste">1. Liste</button>
+        <button type="button" data-md="link" title="Link">🔗 Link</button>
+      </div>
       <textarea class="vorlagen-beschreibung-feld" data-feld="beschreibung" rows="3" placeholder="z. B. Schritt-für-Schritt-Hinweise, Links, worauf zu achten ist ...">${v.beschreibung ?? ''}</textarea>
+      <p style="font-size:11px;color:var(--muted);margin:4px 0 6px;">Unterstützt: **fett**, *kursiv*, Aufzählungen, nummerierte Listen, [Linktext](https://...)</p>
+      <div class="vorlagen-vorschau" data-rolle="vorlagen-vorschau">${markdownZuHtml(v.beschreibung) || '<span style="color:var(--muted);">Vorschau erscheint hier</span>'}</div>
     </div>
   `;
+
+  const textareaFeld = wrapper.querySelector('[data-feld="beschreibung"]');
+  const vorschauDiv = wrapper.querySelector('[data-rolle="vorlagen-vorschau"]');
+
+  textareaFeld.addEventListener('input', () => {
+    vorschauDiv.innerHTML = markdownZuHtml(textareaFeld.value) || '<span style="color:var(--muted);">Vorschau erscheint hier</span>';
+  });
+
+  wrapper.querySelectorAll('[data-md]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const art = btn.dataset.md;
+      if (art === 'fett') textareaFormatierungEinfuegen(textareaFeld, { umschliessen: '**' });
+      else if (art === 'kursiv') textareaFormatierungEinfuegen(textareaFeld, { umschliessen: '*' });
+      else if (art === 'liste') textareaFormatierungEinfuegen(textareaFeld, { zeilenPraefix: '- ' });
+      else if (art === 'nummeriert') textareaFormatierungEinfuegen(textareaFeld, { zeilenPraefix: '1. ' });
+      else if (art === 'link') {
+        const start = textareaFeld.selectionStart;
+        const end = textareaFeld.selectionEnd;
+        const ausgewaehlt = textareaFeld.value.slice(start, end) || 'Linktext';
+        textareaFeld.value = textareaFeld.value.slice(0, start) + `[${ausgewaehlt}](https://)` + textareaFeld.value.slice(end);
+        textareaFeld.focus();
+        const urlStart = start + ausgewaehlt.length + 3;
+        textareaFeld.setSelectionRange(urlStart, urlStart + 8);
+        textareaFeld.dispatchEvent(new Event('input'));
+      }
+    });
+  });
 
   wrapper.querySelector('[data-rolle="vorlagen-chevron"]').addEventListener('click', () => {
     wrapper.querySelector('[data-rolle="vorlagen-detail"]').classList.toggle('offen');
