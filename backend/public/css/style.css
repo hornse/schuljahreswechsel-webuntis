@@ -94,3 +94,25 @@ footer{ padding:14px 20px; text-align:center; font-size:12px; color:var(--muted)
 .inline-form .feld input, .inline-form .feld select{ width:130px; }
 
 .top-leiste{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:10px; flex-wrap:wrap; }
+
+/* --- Tabs --- */
+.tabs{ display:flex; gap:6px; }
+.tab{
+  background:none; border:1px solid var(--line); border-radius:6px;
+  padding:7px 14px; font-size:13px; cursor:pointer; color:var(--muted);
+  font-family:'IBM Plex Mono',monospace;
+}
+.tab.aktiv{ background:var(--ink); color:#fff; border-color:var(--ink); }
+
+/* --- Dashboard --- */
+.dash-block{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin-bottom:12px; }
+.dash-aktuell{ border-left:4px solid var(--accent, var(--accent-default)); }
+.dash-label{ font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 6px; }
+.dash-titel{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:17px; margin:0 0 4px; }
+.dash-meta{ font-size:13px; color:var(--muted); margin:0; }
+.dash-liste{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
+.dash-liste li{ display:flex; gap:10px; font-size:14px; align-items:baseline; }
+.dash-datum{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted); min-width:46px; }
+.dash-datum-rot{ color:var(--error); font-weight:600; }
+.dash-phasenzeile{ display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
+.dash-phasenname{ font-size:12.5px; min-width:160px; font-family:'IBM Plex Mono',monospace; }

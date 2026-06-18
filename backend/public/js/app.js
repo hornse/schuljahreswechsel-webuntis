@@ -12,6 +12,7 @@ const STATE = {
   schritte: [],       // aktuelle Checkliste
   schuljahre: [],     // nur für Admins geladen
   rollen: [],          // nur für Admins geladen
+  ansicht: 'checkliste', // 'checkliste' | 'dashboard'
 };
 
 const $app = document.getElementById('app');
@@ -121,12 +122,35 @@ function render() {
   $app.innerHTML = '';
   if (!STATE.user) {
     $app.appendChild(renderLogin());
-  } else {
-    $app.appendChild(renderChecklist());
-    if (STATE.user.rolle === 'admin') {
-      $app.appendChild(renderAdminBereich());
-    }
+    return;
   }
+
+  $app.appendChild(renderKopfleiste());
+  $app.appendChild(STATE.ansicht === 'dashboard' ? renderDashboard() : renderChecklist());
+
+  if (STATE.user.rolle === 'admin') {
+    $app.appendChild(renderAdminBereich());
+  }
+}
+
+function renderKopfleiste() {
+  const leiste = document.createElement('div');
+  leiste.className = 'top-leiste';
+  leiste.innerHTML = `
+    <div class="tabs">
+      <button class="tab ${STATE.ansicht !== 'dashboard' ? 'aktiv' : ''}" data-ansicht="checkliste">Checkliste</button>
+      <button class="tab ${STATE.ansicht === 'dashboard' ? 'aktiv' : ''}" data-ansicht="dashboard">Dashboard</button>
+    </div>
+    <button class="btn btn-sekundaer" id="logout-btn">Abmelden</button>
+  `;
+  leiste.querySelectorAll('[data-ansicht]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      STATE.ansicht = btn.dataset.ansicht;
+      render();
+    });
+  });
+  leiste.querySelector('#logout-btn').addEventListener('click', doLogout);
+  return leiste;
 }
 
 function renderLogin() {
@@ -165,14 +189,6 @@ function renderLogin() {
 function renderChecklist() {
   const container = document.createElement('div');
 
-  // Abmelden muss immer möglich sein, auch bevor ein Schuljahr existiert -
-  // deshalb hier oben, statt erst im "es gibt schon Schritte"-Zweig unten.
-  const kopf = document.createElement('div');
-  kopf.className = 'top-leiste';
-  kopf.innerHTML = `<span></span><button class="btn btn-sekundaer" id="logout-btn">Abmelden</button>`;
-  kopf.querySelector('#logout-btn').addEventListener('click', doLogout);
-  container.appendChild(kopf);
-
   if (!STATE.schuljahrId) {
     const hinweis = document.createElement('p');
     hinweis.textContent = STATE.user.rolle === 'admin'
@@ -208,6 +224,121 @@ function renderChecklist() {
   }
 
   return container;
+}
+
+// ============================================================================
+// Dashboard ("was ist gerade dran")
+// ============================================================================
+// Bewusst ohne eigenen API-Endpunkt - bei der Hand voll Schritte reicht es,
+// das auf Basis der schon geladenen STATE.schritte im Browser zu berechnen.
+// "Aktuell dran" = der erste noch offene Schritt in der festgelegten
+// Reihenfolge (Phase 1 -> 5), unabhängig vom optionalen Datumsfeld - die
+// Schritte sind sequenziell gedacht. Das Datumsfeld fließt zusätzlich in
+// die Listen "Überfällig"/"Demnächst" ein, für alle, die ein Datum
+// eingetragen haben.
+
+function heuteISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function inNTagenISO(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatDatum(iso) {
+  const [, monat, tag] = iso.split('-');
+  return `${tag}.${monat}.`;
+}
+
+function berechneDashboardDaten() {
+  const heute = heuteISO();
+  const in14Tagen = inNTagenISO(14);
+
+  const offen = STATE.schritte.filter((s) => !s.erledigt);
+  const aktuell = offen[0] ?? null;
+
+  const ueberfaellig = offen
+    .filter((s) => s.geplantes_datum && s.geplantes_datum < heute)
+    .sort((a, b) => a.geplantes_datum.localeCompare(b.geplantes_datum));
+
+  const demnaechst = offen
+    .filter((s) => s.geplantes_datum && s.geplantes_datum >= heute && s.geplantes_datum <= in14Tagen)
+    .sort((a, b) => a.geplantes_datum.localeCompare(b.geplantes_datum));
+
+  const phasen = new Map();
+  for (const s of STATE.schritte) {
+    if (!phasen.has(s.phase)) {
+      phasen.set(s.phase, { farbe: s.phase_farbe, gesamt: 0, erledigt: 0 });
+    }
+    const eintrag = phasen.get(s.phase);
+    eintrag.gesamt += 1;
+    if (s.erledigt) eintrag.erledigt += 1;
+  }
+
+  return { aktuell, ueberfaellig, demnaechst, phasen };
+}
+
+function renderDashboard() {
+  const container = document.createElement('div');
+
+  if (!STATE.schuljahrId || STATE.schritte.length === 0) {
+    container.innerHTML = '<p>Es ist noch kein Schuljahr angelegt.</p>';
+    return container;
+  }
+
+  const { aktuell, ueberfaellig, demnaechst, phasen } = berechneDashboardDaten();
+
+  const aktuellBlock = document.createElement('div');
+  aktuellBlock.className = 'dash-block dash-aktuell';
+  aktuellBlock.style.setProperty('--accent', aktuell?.phase_farbe ?? 'var(--accent-default)');
+  aktuellBlock.innerHTML = aktuell
+    ? `
+      <p class="dash-label">Aktuell dran</p>
+      <p class="dash-titel" style="color:${aktuell.phase_farbe}">${aktuell.titel}</p>
+      <p class="dash-meta">${aktuell.phase} · ${aktuell.verantwortlich_anzeigename || 'noch niemand zugewiesen'}</p>
+    `
+    : `<p class="dash-label">Aktuell dran</p><p class="dash-titel">Alles erledigt 🎉</p>`;
+  container.appendChild(aktuellBlock);
+
+  if (ueberfaellig.length) {
+    container.appendChild(renderDashListe('Überfällig', ueberfaellig, true));
+  }
+  if (demnaechst.length) {
+    container.appendChild(renderDashListe('Demnächst (14 Tage)', demnaechst, false));
+  }
+
+  const phasenBlock = document.createElement('div');
+  phasenBlock.className = 'dash-block';
+  phasenBlock.innerHTML = '<p class="dash-label">Fortschritt je Phase</p>';
+  for (const [phase, daten] of phasen) {
+    const prozent = daten.gesamt ? Math.round((daten.erledigt / daten.gesamt) * 100) : 0;
+    const zeile = document.createElement('div');
+    zeile.className = 'dash-phasenzeile';
+    zeile.innerHTML = `
+      <span class="dash-phasenname" style="color:${daten.farbe}">${phase}</span>
+      <div class="progress-track" style="flex:1;"><div class="progress-fill" style="width:${prozent}%;background:${daten.farbe}"></div></div>
+      <span class="progress-label">${daten.erledigt}/${daten.gesamt}</span>
+    `;
+    phasenBlock.appendChild(zeile);
+  }
+  container.appendChild(phasenBlock);
+
+  return container;
+}
+
+function renderDashListe(titel, liste, istUeberfaellig) {
+  const block = document.createElement('div');
+  block.className = 'dash-block';
+  const items = liste.map((s) => `
+    <li>
+      <span class="dash-datum ${istUeberfaellig ? 'dash-datum-rot' : ''}">${formatDatum(s.geplantes_datum)}</span>
+      <span>${s.titel}</span>
+    </li>
+  `).join('');
+  block.innerHTML = `<p class="dash-label">${titel}</p><ul class="dash-liste">${items}</ul>`;
+  return block;
 }
 
 function renderSchritt(schritt) {
