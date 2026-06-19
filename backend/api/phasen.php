@@ -1,0 +1,96 @@
+<?php
+
+/**
+ * Endpunkte: GET /api/phasen, POST /api/phasen,
+ *            PATCH /api/phasen/{id}, POST /api/phasen/reihenfolge
+ *
+ * Phasen sind jetzt eigenständige Datensätze, nicht mehr nur ein
+ * Textfeld an der Vorlage. Das erlaubt:
+ *   - Umbenennen einer Phase ohne jede einzelne Vorlage anzufassen
+ *   - Farbe zentral am Phasen-Datensatz pflegen
+ *   - Explizite Reihenfolge (unabhängig vom Textnamen)
+ *   - Neue Phasen anlegen und in den Ablauf einfügen
+ *
+ * Alles hier ist admin-only.
+ */
+
+use App\Guard;
+use App\Response;
+
+function handleListPhasen(PDO $db): void
+{
+    Guard::requireAdmin($db);
+    $rows = $db->query(
+        'SELECT id, name, farbe, reihenfolge FROM phasen ORDER BY reihenfolge'
+    )->fetchAll();
+    Response::json($rows);
+}
+
+function handleCreatePhase(PDO $db, array $config, array $input): void
+{
+    Guard::requireAdmin($db);
+
+    $name  = trim((string) ($input['name'] ?? ''));
+    $farbe = trim((string) ($input['farbe'] ?? '')) ?: '#5B6FA8';
+
+    if ($name === '') {
+        Response::error('name ist erforderlich.', 400);
+    }
+
+    $maxReihenfolge = (int) $db->query('SELECT COALESCE(MAX(reihenfolge), 0) FROM phasen')->fetchColumn();
+
+    $db->prepare(
+        'INSERT INTO phasen (name, farbe, reihenfolge) VALUES (:name, :farbe, :r)'
+    )->execute([':name' => $name, ':farbe' => $farbe, ':r' => $maxReihenfolge + 1]);
+
+    Response::json(['id' => (int) $db->lastInsertId()], 201);
+}
+
+function handleUpdatePhase(PDO $db, array $config, array $input, array $params): void
+{
+    Guard::requireAdmin($db);
+    $id = (int) $params['id'];
+
+    $sets  = [];
+    $werte = [':id' => $id];
+
+    foreach (['name', 'farbe'] as $feld) {
+        if (array_key_exists($feld, $input)) {
+            $sets[]          = "$feld = :$feld";
+            $werte[":$feld"] = $input[$feld];
+        }
+    }
+
+    if (empty($sets)) {
+        Response::error('Keine gültigen Felder (name, farbe).', 400);
+    }
+
+    $db->prepare('UPDATE phasen SET ' . implode(', ', $sets) . ' WHERE id = :id')
+       ->execute($werte);
+
+    Response::json(['ok' => true]);
+}
+
+/**
+ * Bulk-Umsortierung der Phasen selbst (Drag-and-Drop der Phasen-Überschriften
+ * im Frontend). Bekommt das komplette Array aller Phasen-IDs in gewünschter
+ * neuer Reihenfolge.
+ */
+function handleReihenfolgePhasen(PDO $db, array $config, array $input): void
+{
+    Guard::requireAdmin($db);
+
+    $ids = $input['phasen_ids'] ?? null;
+    if (!is_array($ids) || empty($ids)) {
+        Response::error('phasen_ids (nicht-leeres Array) ist erforderlich.', 400);
+    }
+
+    $db->beginTransaction();
+    $stmt = $db->prepare('UPDATE phasen SET reihenfolge = :r WHERE id = :id');
+    foreach (array_values($ids) as $index => $id) {
+        $stmt->execute([':r' => $index + 1, ':id' => (int) $id]);
+    }
+    $db->commit();
+
+    Response::json(['ok' => true]);
+}

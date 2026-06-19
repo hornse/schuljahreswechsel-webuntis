@@ -18,6 +18,7 @@ const STATE = {
   schritte: [],            // volle Checkliste, nur nach Login geladen
   schuljahre: [],          // nur für Admins geladen
   rollen: [],               // nur für Admins geladen
+  phasen: [],               // nur für Admins geladen
   vorlagen: [],              // nur für Admins geladen (Checklisten-Vorlage verwalten)
   publicDashboard: null,      // { schuljahr_label, schritte } - immer geladen, kein Login nötig
   ansicht: 'dashboard',        // 'dashboard' | 'checkliste' | 'login'
@@ -171,6 +172,7 @@ async function doLogout() {
   STATE.schritte = [];
   STATE.schuljahre = [];
   STATE.rollen = [];
+  STATE.phasen = [];
   STATE.vorlagen = [];
   STATE.ansicht = 'dashboard';
   render();
@@ -189,6 +191,7 @@ async function ladeAlles() {
   if (STATE.user?.rolle === 'admin') {
     STATE.schuljahre = await api('/api/schuljahre');
     STATE.rollen = await api('/api/rollen');
+    STATE.phasen = await api('/api/phasen');
     STATE.vorlagen = await api('/api/vorlagen');
   }
 }
@@ -226,8 +229,8 @@ async function setzeRolle(webuntis_user, rolle, anzeigename) {
   render();
 }
 
-async function neueVorlage(phase, titel) {
-  await api('/api/vorlagen', { method: 'POST', body: { phase, titel } });
+async function neueVorlage(phase_id, titel) {
+  await api('/api/vorlagen', { method: 'POST', body: { phase_id, titel } });
   await ladeAlles();
   await ladeOeffentlichesDashboard();
   render();
@@ -240,8 +243,28 @@ async function vorlageAktualisieren(id, felder) {
   render();
 }
 
-async function reihenfolgeAendern(phase, vorlage_ids) {
-  await api('/api/vorlagen/reihenfolge', { method: 'POST', body: { phase, vorlage_ids } });
+async function reihenfolgeAendern(phase_id, vorlage_ids) {
+  await api('/api/vorlagen/reihenfolge', { method: 'POST', body: { phase_id, vorlage_ids } });
+  await ladeAlles();
+  await ladeOeffentlichesDashboard();
+  render();
+}
+
+async function neuePhase(name, farbe) {
+  await api('/api/phasen', { method: 'POST', body: { name, farbe } });
+  await ladeAlles();
+  render();
+}
+
+async function phaseAktualisieren(id, felder) {
+  await api(`/api/phasen/${id}`, { method: 'PATCH', body: felder });
+  await ladeAlles();
+  await ladeOeffentlichesDashboard();
+  render();
+}
+
+async function reihenfolgePhasenAendern(phasen_ids) {
+  await api('/api/phasen/reihenfolge', { method: 'POST', body: { phasen_ids } });
   await ladeAlles();
   await ladeOeffentlichesDashboard();
   render();
@@ -668,85 +691,157 @@ function renderZugriffBlock() {
   return rollenBlock;
 }
 
-// --- Checklisten-Vorlage verwalten (Drag-and-Drop innerhalb einer Phase) ---
+// --- Checklisten-Vorlage verwalten ---
+
+let dragZustandPhase = null; // { id } - für Phasen-Drag-and-Drop
 
 function renderVorlagenVerwaltung() {
   const block = document.createElement('div');
   block.innerHTML = '<h3 style="font-size:13px;color:var(--muted);margin-top:24px;">Checkliste verwalten</h3>';
 
-  const phasenNamen = [...new Set(STATE.vorlagen.map((v) => v.phase))];
+  const phasenListe = document.createElement('div');
+  phasenListe.className = 'phasen-liste';
 
-  for (const phase of phasenNamen) {
-    const gruppe = STATE.vorlagen.filter((v) => v.phase === phase).sort((a, b) => a.reihenfolge - b.reihenfolge);
-    const farbe = gruppe[0]?.phase_farbe ?? '#5B6FA8';
-
-    const phasenBlock = document.createElement('div');
-    phasenBlock.innerHTML = `<p class="phase-title" style="color:${farbe};margin-top:14px;">${phase}</p>`;
-
-    const liste = document.createElement('div');
-    liste.className = 'vorlagen-liste';
-
-    for (const v of gruppe) {
-      liste.appendChild(renderVorlagenZeile(v, phasenNamen));
-    }
-
-    liste.addEventListener('dragover', (e) => e.preventDefault());
-    liste.addEventListener('drop', (e) => {
-      e.preventDefault();
-      if (!dragZustand || dragZustand.phase !== phase) {
-        return; // kein phasenübergreifendes Drag-and-Drop - siehe Kommentar im Backend
-      }
-      const zielEl = e.target.closest('[data-vorlage-id]');
-      const aktuelleIds = gruppe.map((v) => v.id);
-      const ohneGezogenen = aktuelleIds.filter((id) => id !== dragZustand.id);
-
-      let neueReihe;
-      if (zielEl) {
-        const zielId = Number(zielEl.dataset.vorlageId);
-        const zielIndex = ohneGezogenen.indexOf(zielId);
-        neueReihe = zielIndex === -1
-          ? [...ohneGezogenen, dragZustand.id]
-          : [...ohneGezogenen.slice(0, zielIndex), dragZustand.id, ...ohneGezogenen.slice(zielIndex)];
-      } else {
-        neueReihe = [...ohneGezogenen, dragZustand.id];
-      }
-      reihenfolgeAendern(phase, neueReihe);
-    });
-
-    phasenBlock.appendChild(liste);
-    block.appendChild(phasenBlock);
+  for (const phase of STATE.phasen) {
+    const vorlagenDerPhase = STATE.vorlagen
+      .filter((v) => v.phase_id === phase.id)
+      .sort((a, b) => a.reihenfolge - b.reihenfolge);
+    phasenListe.appendChild(renderPhasenBlock(phase, vorlagenDerPhase));
   }
 
-  const neuerSchrittForm = document.createElement('form');
-  neuerSchrittForm.className = 'inline-form';
-  neuerSchrittForm.style.marginTop = '14px';
-  neuerSchrittForm.innerHTML = `
-    <div class="feld"><label>Phase</label>
-      <select id="neuer-schritt-phase">
-        ${phasenNamen.map((p) => `<option value="${p}">${p}</option>`).join('')}
-      </select>
-    </div>
-    <div class="feld" style="flex:1;"><label>Neuer Schritt</label><input type="text" id="neuer-schritt-titel" required style="width:100%;"></div>
-    <button class="btn" type="submit" style="width:auto;">Hinzufügen</button>
-  `;
-  neuerSchrittForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const phase = neuerSchrittForm.querySelector('#neuer-schritt-phase').value;
-    const titel = neuerSchrittForm.querySelector('#neuer-schritt-titel').value.trim();
-    if (titel) neueVorlage(phase, titel);
+  phasenListe.addEventListener('dragover', (e) => {
+    if (dragZustandPhase) e.preventDefault();
   });
-  block.appendChild(neuerSchrittForm);
+  phasenListe.addEventListener('drop', (e) => {
+    if (!dragZustandPhase) return;
+    e.preventDefault();
+    const zielEl = e.target.closest('[data-phasen-block-id]');
+    const alleIds = STATE.phasen.map((p) => p.id);
+    const ohneGezogene = alleIds.filter((id) => id !== dragZustandPhase.id);
+    let neueReihe;
+    if (zielEl) {
+      const zielId = Number(zielEl.dataset.phasenBlockId);
+      const zielIndex = ohneGezogene.indexOf(zielId);
+      neueReihe = zielIndex === -1
+        ? [...ohneGezogene, dragZustandPhase.id]
+        : [...ohneGezogene.slice(0, zielIndex), dragZustandPhase.id, ...ohneGezogene.slice(zielIndex)];
+    } else {
+      neueReihe = [...ohneGezogene, dragZustandPhase.id];
+    }
+    reihenfolgePhasenAendern(neueReihe);
+  });
+
+  block.appendChild(phasenListe);
+
+  const neuePhaseForm = document.createElement('form');
+  neuePhaseForm.className = 'inline-form';
+  neuePhaseForm.style.marginTop = '14px';
+  neuePhaseForm.innerHTML = `
+    <div class="feld" style="flex:1;"><label>Neue Phase</label><input type="text" id="neue-phase-name" placeholder="z. B. 0. Vorbereitungen" required style="width:100%;"></div>
+    <div class="feld"><label>Farbe</label><input type="color" id="neue-phase-farbe" value="#5B6FA8" style="width:50px;height:34px;padding:2px;border:1px solid var(--line);border-radius:6px;"></div>
+    <button class="btn" type="submit" style="width:auto;">Phase anlegen</button>
+  `;
+  neuePhaseForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = neuePhaseForm.querySelector('#neue-phase-name').value.trim();
+    const farbe = neuePhaseForm.querySelector('#neue-phase-farbe').value;
+    if (name) neuePhase(name, farbe);
+  });
+  block.appendChild(neuePhaseForm);
 
   const hinweis = document.createElement('p');
   hinweis.style.cssText = 'font-size:12px;color:var(--muted);margin-top:8px;';
-  hinweis.textContent = 'Zum Umsortieren innerhalb einer Phase per Drag-and-Drop am Griff (⠿) ziehen. '
-    + 'Phasenwechsel über das Auswahlfeld in der Zeile. Neue/geänderte Schritte wirken sich sofort auf das aktuell laufende Schuljahr aus.';
+  hinweis.textContent = 'Phasen per Drag-and-Drop am \u29bf-Griff umsortieren. '
+    + 'Schritte innerhalb einer Phase ebenfalls per Drag-and-Drop sortierbar. '
+    + 'Phasenwechsel f\u00fcr einzelne Schritte \u00fcber das Auswahlfeld in der Zeile.';
   block.appendChild(hinweis);
 
   return block;
 }
 
-function renderVorlagenZeile(v, phasenNamen) {
+function renderPhasenBlock(phase, vorlagen) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'phasen-block';
+  wrapper.dataset.phasenBlockId = phase.id;
+  wrapper.draggable = true;
+
+  const kopf = document.createElement('div');
+  kopf.className = 'phasen-kopf';
+  kopf.style.setProperty('--phase-farbe', phase.farbe);
+  kopf.innerHTML = `
+    <span class="zieh-griff phasen-griff" title="Phase verschieben">\u29bf</span>
+    <input type="color" class="phasen-farbe-picker" value="${phase.farbe}" title="Farbe \u00e4ndern">
+    <input type="text" class="phasen-name-feld" value="${phase.name}">
+  `;
+
+  kopf.querySelector('.phasen-farbe-picker').addEventListener('change', (e) => {
+    phaseAktualisieren(phase.id, { farbe: e.target.value });
+  });
+  kopf.querySelector('.phasen-name-feld').addEventListener('change', (e) => {
+    phaseAktualisieren(phase.id, { name: e.target.value });
+  });
+
+  wrapper.addEventListener('dragstart', (e) => {
+    if (e.target.closest('.vorlagen-zeile-wrapper')) return;
+    dragZustandPhase = { id: phase.id };
+    wrapper.classList.add('wird-gezogen');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  wrapper.addEventListener('dragend', () => {
+    wrapper.classList.remove('wird-gezogen');
+    dragZustandPhase = null;
+  });
+
+  wrapper.appendChild(kopf);
+
+  const liste = document.createElement('div');
+  liste.className = 'vorlagen-liste';
+  for (const v of vorlagen) {
+    liste.appendChild(renderVorlagenZeile(v));
+  }
+
+  liste.addEventListener('dragover', (e) => {
+    if (dragZustand && dragZustand.phase_id === phase.id) e.preventDefault();
+  });
+  liste.addEventListener('drop', (e) => {
+    if (!dragZustand || dragZustand.phase_id !== phase.id) return;
+    e.preventDefault();
+    const zielEl = e.target.closest('[data-vorlage-id]');
+    const aktuelleIds = vorlagen.map((v) => v.id);
+    const ohneGezogenen = aktuelleIds.filter((id) => id !== dragZustand.id);
+    let neueReihe;
+    if (zielEl) {
+      const zielId = Number(zielEl.dataset.vorlageId);
+      const zielIndex = ohneGezogenen.indexOf(zielId);
+      neueReihe = zielIndex === -1
+        ? [...ohneGezogenen, dragZustand.id]
+        : [...ohneGezogenen.slice(0, zielIndex), dragZustand.id, ...ohneGezogenen.slice(zielIndex)];
+    } else {
+      neueReihe = [...ohneGezogenen, dragZustand.id];
+    }
+    reihenfolgeAendern(phase.id, neueReihe);
+  });
+
+  wrapper.appendChild(liste);
+
+  const neuerSchrittForm = document.createElement('form');
+  neuerSchrittForm.className = 'inline-form';
+  neuerSchrittForm.style.cssText = 'margin:6px 8px 10px;';
+  neuerSchrittForm.innerHTML = `
+    <input type="text" class="neuer-schritt-titel" placeholder="Neuer Schritt..." style="flex:1;">
+    <button class="btn" type="submit" style="width:auto;">+</button>
+  `;
+  neuerSchrittForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const titel = neuerSchrittForm.querySelector('.neuer-schritt-titel').value.trim();
+    if (titel) neueVorlage(phase.id, titel);
+  });
+  wrapper.appendChild(neuerSchrittForm);
+
+  return wrapper;
+}
+
+function renderVorlagenZeile(v) {
   const wrapper = document.createElement('div');
   wrapper.className = 'vorlagen-zeile-wrapper' + (v.aktiv ? '' : ' inaktiv');
   wrapper.draggable = true;
@@ -754,27 +849,27 @@ function renderVorlagenZeile(v, phasenNamen) {
 
   wrapper.innerHTML = `
     <div class="vorlagen-zeile">
-      <span class="zieh-griff" title="Ziehen zum Umsortieren">⠿</span>
+      <span class="zieh-griff" title="Ziehen zum Umsortieren">\u29bf</span>
       <input type="text" class="vorlagen-titel-feld" value="${v.titel}" data-feld="titel">
-      <select class="vorlagen-phase-feld" data-feld="phase">
-        ${phasenNamen.map((p) => `<option value="${p}" ${p === v.phase ? 'selected' : ''}>${p}</option>`).join('')}
+      <select class="vorlagen-phase-feld" data-feld="phase_id">
+        ${STATE.phasen.map((p) => `<option value="${p.id}" ${p.id === v.phase_id ? 'selected' : ''}>${p.name}</option>`).join('')}
       </select>
       <button class="btn-sekundaer btn" data-toggle-aktiv style="width:auto;">${v.aktiv ? 'deaktivieren' : 'reaktivieren'}</button>
-      <span class="chev" data-rolle="vorlagen-chevron">▸</span>
+      <span class="chev" data-rolle="vorlagen-chevron">\u25b8</span>
     </div>
     <div class="schritt-detail" data-rolle="vorlagen-detail" style="padding:0 14px 14px 26px;">
       <label style="font-size:10.5px;color:var(--muted);display:block;margin-bottom:4px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.04em;">
-        Weiterführende Infos (nur für angemeldete Personen sichtbar)
+        Weiterf\u00fchrende Infos (nur f\u00fcr angemeldete Personen sichtbar)
       </label>
       <div class="md-toolbar">
         <button type="button" data-md="fett" title="Fett"><strong>F</strong></button>
         <button type="button" data-md="kursiv" title="Kursiv"><em>K</em></button>
-        <button type="button" data-md="liste" title="Aufzählung">• Liste</button>
+        <button type="button" data-md="liste" title="Aufz\u00e4hlung">\u2022 Liste</button>
         <button type="button" data-md="nummeriert" title="Nummerierte Liste">1. Liste</button>
-        <button type="button" data-md="link" title="Link">🔗 Link</button>
+        <button type="button" data-md="link" title="Link">\U0001f517 Link</button>
       </div>
-      <textarea class="vorlagen-beschreibung-feld" data-feld="beschreibung" rows="3" placeholder="z. B. Schritt-für-Schritt-Hinweise, Links, worauf zu achten ist ...">${v.beschreibung ?? ''}</textarea>
-      <p style="font-size:11px;color:var(--muted);margin:4px 0 6px;">Unterstützt: **fett**, *kursiv*, Aufzählungen, nummerierte Listen, [Linktext](https://...)</p>
+      <textarea class="vorlagen-beschreibung-feld" data-feld="beschreibung" rows="3" placeholder="z. B. Schritt-f\u00fcr-Schritt-Hinweise, Links, worauf zu achten ist ...">${v.beschreibung ?? ''}</textarea>
+      <p style="font-size:11px;color:var(--muted);margin:4px 0 6px;">Unterst\u00fctzt: **fett**, *kursiv*, Aufz\u00e4hlungen, nummerierte Listen, [Linktext](https://...)</p>
       <div class="vorlagen-vorschau" data-rolle="vorlagen-vorschau">${markdownZuHtml(v.beschreibung) || '<span style="color:var(--muted);">Vorschau erscheint hier</span>'}</div>
     </div>
   `;
@@ -812,9 +907,10 @@ function renderVorlagenZeile(v, phasenNamen) {
     wrapper.querySelector('[data-rolle="vorlagen-chevron"]').classList.toggle('offen');
   });
 
-  wrapper.addEventListener('dragstart', () => {
-    dragZustand = { id: v.id, phase: v.phase };
+  wrapper.addEventListener('dragstart', (e) => {
+    dragZustand = { id: v.id, phase_id: v.phase_id };
     wrapper.classList.add('wird-gezogen');
+    e.stopPropagation();
   });
   wrapper.addEventListener('dragend', () => {
     wrapper.classList.remove('wird-gezogen');
@@ -824,8 +920,8 @@ function renderVorlagenZeile(v, phasenNamen) {
   wrapper.querySelector('[data-feld="titel"]').addEventListener('change', (e) => {
     vorlageAktualisieren(v.id, { titel: e.target.value });
   });
-  wrapper.querySelector('[data-feld="phase"]').addEventListener('change', (e) => {
-    vorlageAktualisieren(v.id, { phase: e.target.value });
+  wrapper.querySelector('[data-feld="phase_id"]').addEventListener('change', (e) => {
+    vorlageAktualisieren(v.id, { phase_id: Number(e.target.value) });
   });
   wrapper.querySelector('[data-feld="beschreibung"]').addEventListener('change', (e) => {
     vorlageAktualisieren(v.id, { beschreibung: e.target.value });

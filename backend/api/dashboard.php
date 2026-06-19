@@ -24,11 +24,14 @@ function handleDashboard(PDO $db): void
     }
 
     $stmt = $db->prepare(
-        'SELECT si.erledigt, si.geplantes_datum, sv.phase, sv.phase_farbe, sv.reihenfolge, sv.titel
+        'SELECT si.erledigt, si.geplantes_datum,
+                p.name AS phase, p.farbe AS phase_farbe, p.reihenfolge AS phase_reihenfolge,
+                sv.reihenfolge, sv.titel
          FROM schritt_instanzen si
          JOIN schritt_vorlagen sv ON sv.id = si.vorlage_id
+         JOIN phasen p ON p.id = sv.phase_id
          WHERE si.schuljahr_id = :sj
-         ORDER BY sv.phase, sv.reihenfolge'
+         ORDER BY p.reihenfolge, sv.reihenfolge'
     );
     $stmt->execute([':sj' => $schuljahr['id']]);
 

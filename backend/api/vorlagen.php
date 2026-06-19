@@ -18,8 +18,11 @@ function handleListVorlagen(PDO $db): void
 {
     Guard::requireAdmin($db);
     $rows = $db->query(
-        'SELECT id, phase, phase_farbe, reihenfolge, titel, beschreibung, aktiv
-         FROM schritt_vorlagen ORDER BY phase, reihenfolge'
+        'SELECT sv.id, sv.phase_id, p.name AS phase, p.farbe AS phase_farbe,
+                p.reihenfolge AS phase_reihenfolge, sv.reihenfolge, sv.titel, sv.beschreibung, sv.aktiv
+         FROM schritt_vorlagen sv
+         JOIN phasen p ON p.id = sv.phase_id
+         ORDER BY p.reihenfolge, sv.reihenfolge'
     )->fetchAll();
     Response::json($rows);
 }
@@ -35,28 +38,34 @@ function handleCreateVorlage(PDO $db, array $config, array $input): void
 {
     Guard::requireAdmin($db);
 
-    $phase = trim((string) ($input['phase'] ?? ''));
-    $titel = trim((string) ($input['titel'] ?? ''));
-    $phaseFarbe = trim((string) ($input['phase_farbe'] ?? '')) ?: '#5B6FA8';
-    $beschreibung = $input['beschreibung'] ?? null;
+    $phaseId = isset($input['phase_id']) ? (int) $input['phase_id'] : null;
+    $titel   = trim((string) ($input['titel'] ?? ''));
 
-    if ($phase === '' || $titel === '') {
-        Response::error('phase und titel sind erforderlich.', 400);
+    if (!$phaseId || $titel === '') {
+        Response::error('phase_id und titel sind erforderlich.', 400);
+    }
+
+    // Prüfen, ob die Phase existiert
+    $phaseCheck = $db->prepare('SELECT id FROM phasen WHERE id = :id');
+    $phaseCheck->execute([':id' => $phaseId]);
+    if (!$phaseCheck->fetchColumn()) {
+        Response::error('Phase nicht gefunden.', 404);
     }
 
     $db->beginTransaction();
     try {
-        $maxStmt = $db->prepare('SELECT COALESCE(MAX(reihenfolge), 0) FROM schritt_vorlagen WHERE phase = :phase');
-        $maxStmt->execute([':phase' => $phase]);
+        $maxStmt = $db->prepare('SELECT COALESCE(MAX(reihenfolge), 0) FROM schritt_vorlagen WHERE phase_id = :phase_id');
+        $maxStmt->execute([':phase_id' => $phaseId]);
         $naechsteReihenfolge = (int) $maxStmt->fetchColumn() + 1;
 
         $insert = $db->prepare(
-            'INSERT INTO schritt_vorlagen (phase, phase_farbe, reihenfolge, titel, beschreibung)
-             VALUES (:phase, :farbe, :reihenfolge, :titel, :beschreibung)'
+            'INSERT INTO schritt_vorlagen (phase_id, reihenfolge, titel)
+             VALUES (:phase_id, :reihenfolge, :titel)'
         );
         $insert->execute([
-            ':phase' => $phase, ':farbe' => $phaseFarbe, ':reihenfolge' => $naechsteReihenfolge,
-            ':titel' => $titel, ':beschreibung' => $beschreibung,
+            ':phase_id'    => $phaseId,
+            ':reihenfolge' => $naechsteReihenfolge,
+            ':titel'       => $titel,
         ]);
         $vorlageId = (int) $db->lastInsertId();
 
@@ -87,34 +96,36 @@ function handleUpdateVorlage(PDO $db, array $config, array $input, array $params
     Guard::requireAdmin($db);
     $id = (int) $params['id'];
 
-    $aktuelleStmt = $db->prepare('SELECT phase FROM schritt_vorlagen WHERE id = :id');
+    $aktuelleStmt = $db->prepare('SELECT phase_id FROM schritt_vorlagen WHERE id = :id');
     $aktuelleStmt->execute([':id' => $id]);
-    $aktuellePhase = $aktuelleStmt->fetchColumn();
-    if ($aktuellePhase === false) {
+    $aktuellePhaseId = $aktuelleStmt->fetchColumn();
+    if ($aktuellePhaseId === false) {
         Response::error('Vorlage nicht gefunden.', 404);
     }
 
-    $sets = [];
+    $sets  = [];
     $werte = [':id' => $id];
 
-    foreach (['titel', 'beschreibung', 'phase_farbe'] as $feld) {
+    foreach (['titel', 'beschreibung'] as $feld) {
         if (array_key_exists($feld, $input)) {
-            $sets[] = "$feld = :$feld";
+            $sets[]          = "$feld = :$feld";
             $werte[":$feld"] = $input[$feld];
         }
     }
 
     if (array_key_exists('aktiv', $input)) {
-        $sets[] = 'aktiv = :aktiv';
+        $sets[]         = 'aktiv = :aktiv';
         $werte[':aktiv'] = $input['aktiv'] ? 1 : 0;
     }
 
-    if (array_key_exists('phase', $input) && $input['phase'] !== $aktuellePhase) {
-        $maxStmt = $db->prepare('SELECT COALESCE(MAX(reihenfolge), 0) FROM schritt_vorlagen WHERE phase = :phase');
-        $maxStmt->execute([':phase' => $input['phase']]);
-        $sets[] = 'phase = :phase';
-        $sets[] = 'reihenfolge = :reihenfolge';
-        $werte[':phase'] = $input['phase'];
+    // Phasenwechsel: ans Ende der neuen Phase anhängen
+    if (array_key_exists('phase_id', $input) && (int) $input['phase_id'] !== (int) $aktuellePhaseId) {
+        $neuePhaseId = (int) $input['phase_id'];
+        $maxStmt = $db->prepare('SELECT COALESCE(MAX(reihenfolge), 0) FROM schritt_vorlagen WHERE phase_id = :phase_id');
+        $maxStmt->execute([':phase_id' => $neuePhaseId]);
+        $sets[]              = 'phase_id = :phase_id';
+        $sets[]              = 'reihenfolge = :reihenfolge';
+        $werte[':phase_id']  = $neuePhaseId;
         $werte[':reihenfolge'] = (int) $maxStmt->fetchColumn() + 1;
     }
 
@@ -138,17 +149,17 @@ function handleReihenfolgeVorlagen(PDO $db, array $config, array $input): void
 {
     Guard::requireAdmin($db);
 
-    $phase = trim((string) ($input['phase'] ?? ''));
-    $ids = $input['vorlage_ids'] ?? null;
+    $phaseId = isset($input['phase_id']) ? (int) $input['phase_id'] : null;
+    $ids     = $input['vorlage_ids'] ?? null;
 
-    if ($phase === '' || !is_array($ids) || empty($ids)) {
-        Response::error('phase und vorlage_ids (nicht-leeres Array) sind erforderlich.', 400);
+    if (!$phaseId || !is_array($ids) || empty($ids)) {
+        Response::error('phase_id und vorlage_ids (nicht-leeres Array) sind erforderlich.', 400);
     }
 
     $db->beginTransaction();
-    $stmt = $db->prepare('UPDATE schritt_vorlagen SET reihenfolge = :r WHERE id = :id AND phase = :phase');
+    $stmt = $db->prepare('UPDATE schritt_vorlagen SET reihenfolge = :r WHERE id = :id AND phase_id = :phase_id');
     foreach (array_values($ids) as $index => $id) {
-        $stmt->execute([':r' => $index + 1, ':id' => (int) $id, ':phase' => $phase]);
+        $stmt->execute([':r' => $index + 1, ':id' => (int) $id, ':phase_id' => $phaseId]);
     }
     $db->commit();
 

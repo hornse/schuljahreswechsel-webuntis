@@ -118,7 +118,25 @@ footer{ padding:14px 20px; text-align:center; font-size:12px; color:var(--muted)
 .dash-phasenname{ font-size:12.5px; min-width:160px; font-family:'IBM Plex Mono',monospace; }
 .dash-schuljahr{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px; color:var(--muted); margin:0 0 14px; }
 
-/* --- Checklisten-Vorlage verwalten --- */
+/* --- Phasen-Verwaltung --- */
+.phasen-liste{ display:flex; flex-direction:column; gap:12px; }
+.phasen-block{
+  border:1px solid var(--line); border-radius:8px; overflow:hidden; cursor:default;
+}
+.phasen-block.wird-gezogen{ opacity:.4; }
+.phasen-kopf{
+  display:flex; align-items:center; gap:8px; padding:8px 10px;
+  background:color-mix(in srgb, var(--phase-farbe) 12%, white);
+  border-bottom:2px solid var(--phase-farbe);
+}
+.phasen-griff{ font-size:16px; cursor:grab; }
+.phasen-farbe-picker{ width:28px; height:28px; padding:0; border:none; border-radius:4px; cursor:pointer; flex-shrink:0; }
+.phasen-name-feld{
+  flex:1; border:none; background:transparent; font-size:14px; font-weight:700;
+  color:var(--phase-farbe); padding:2px 4px; border-radius:4px;
+}
+.phasen-name-feld:focus{ background:#fff; outline:1px solid var(--phase-farbe); }
+
 .vorlagen-liste{ display:flex; flex-direction:column; gap:4px; }
 .vorlagen-zeile-wrapper{
   background:#fff; border:1px solid var(--line); border-radius:6px; cursor:grab;

@@ -23,11 +23,13 @@ function handleListSchritte(PDO $db): void
     $stmt = $db->prepare(
         'SELECT si.id, si.erledigt, si.verantwortlich_user, si.verantwortlich_anzeigename,
                 si.geplantes_datum, si.erledigt_am, si.erledigt_von, si.kommentar,
-                sv.phase, sv.phase_farbe, sv.reihenfolge, sv.titel, sv.beschreibung
+                p.name AS phase, p.farbe AS phase_farbe, p.reihenfolge AS phase_reihenfolge,
+                sv.reihenfolge, sv.titel, sv.beschreibung
          FROM schritt_instanzen si
          JOIN schritt_vorlagen sv ON sv.id = si.vorlage_id
+         JOIN phasen p ON p.id = sv.phase_id
          WHERE si.schuljahr_id = :sj
-         ORDER BY sv.phase, sv.reihenfolge'
+         ORDER BY p.reihenfolge, sv.reihenfolge'
     );
     $stmt->execute([':sj' => $schuljahrId]);
 

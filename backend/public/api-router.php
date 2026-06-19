@@ -20,6 +20,7 @@ require __DIR__ . '/../api/dashboard.php';
 require __DIR__ . '/../api/schritte.php';
 require __DIR__ . '/../api/schuljahre.php';
 require __DIR__ . '/../api/rollen.php';
+require __DIR__ . '/../api/phasen.php';
 require __DIR__ . '/../api/vorlagen.php';
 
 $route = trim((string) ($_GET['route'] ?? ''), '/');
@@ -54,6 +55,11 @@ $routes = [
     ['POST',  '#^api/vorlagen$#',                          'handleCreateVorlage'],
     ['PATCH', '#^api/vorlagen/(?P<id>\d+)$#',              'handleUpdateVorlage'],
     ['POST',  '#^api/vorlagen/reihenfolge$#',              'handleReihenfolgeVorlagen'],
+
+    ['GET',   '#^api/phasen$#',                            'handleListPhasen'],
+    ['POST',  '#^api/phasen$#',                            'handleCreatePhase'],
+    ['PATCH', '#^api/phasen/(?P<id>\d+)$#',               'handleUpdatePhase'],
+    ['POST',  '#^api/phasen/reihenfolge$#',                'handleReihenfolgePhasen'],
 ];
 
 foreach ($routes as [$routeMethod, $pattern, $handler]) {
