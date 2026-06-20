@@ -1,10 +1,9 @@
 <?php
 
 /**
- * Endpunkte: GET /api/rollen, POST /api/rollen
+ * Endpunkte: GET /api/rollen, POST /api/rollen, DELETE /api/rollen/{user}
  *
- * Beide nur für Admins zugänglich. Über diesen Endpunkt wird auch der
- * erste Admin "befördert" - siehe docs/BENUTZERHANDBUCH.md.
+ * Alle nur für Admins zugänglich.
  */
 
 use App\Guard;
@@ -23,8 +22,8 @@ function handleUpsertRolle(PDO $db, array $config, array $input): void
 {
     Guard::requireAdmin($db);
 
-    $username = trim((string) ($input['webuntis_user'] ?? ''));
-    $rolle = (string) ($input['rolle'] ?? 'mitglied');
+    $username    = trim((string) ($input['webuntis_user'] ?? ''));
+    $rolle       = (string) ($input['rolle'] ?? 'mitglied');
     $anzeigename = trim((string) ($input['anzeigename'] ?? '')) ?: $username;
 
     if ($username === '' || !in_array($rolle, ['admin', 'mitglied'], true)) {
@@ -37,5 +36,36 @@ function handleUpsertRolle(PDO $db, array $config, array $input): void
     );
     $stmt->execute([':u' => $username, ':name' => $anzeigename, ':rolle' => $rolle]);
 
+    Response::json(['ok' => true]);
+}
+
+function handleDeleteRolle(PDO $db, array $config, array $input, array $params): void
+{
+    $aktuellerAdmin = Guard::requireAdmin($db);
+    $username = urldecode($params['user']);
+
+    // Selbst-Entfernung verhindern
+    if ($username === $aktuellerAdmin['webuntis_user']) {
+        Response::error('Du kannst dich nicht selbst aus der Zugriffsliste entfernen.', 403);
+    }
+
+    // Letzten Admin schützen: prüfen ob nach dem Löschen noch mindestens
+    // ein Admin übrig bleibt
+    $zielRolle = $db->prepare('SELECT rolle FROM benutzer_rollen WHERE webuntis_user = :u');
+    $zielRolle->execute([':u' => $username]);
+    $zeile = $zielRolle->fetch();
+
+    if (!$zeile) {
+        Response::error('Person nicht gefunden.', 404);
+    }
+
+    if ($zeile['rolle'] === 'admin') {
+        $adminAnzahl = (int) $db->query("SELECT COUNT(*) FROM benutzer_rollen WHERE rolle = 'admin'")->fetchColumn();
+        if ($adminAnzahl <= 1) {
+            Response::error('Der letzte Admin kann nicht entfernt werden.', 403);
+        }
+    }
+
+    $db->prepare('DELETE FROM benutzer_rollen WHERE webuntis_user = :u')->execute([':u' => $username]);
     Response::json(['ok' => true]);
 }

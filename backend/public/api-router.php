@@ -50,6 +50,7 @@ $routes = [
 
     ['GET',   '#^api/rollen$#',                            'handleListRollen'],
     ['POST',  '#^api/rollen$#',                            'handleUpsertRolle'],
+    ['DELETE','#^api/rollen/(?P<user>[^/]+)$#',            'handleDeleteRolle'],
 
     ['GET',   '#^api/vorlagen$#',                          'handleListVorlagen'],
     ['POST',  '#^api/vorlagen$#',                          'handleCreateVorlage'],

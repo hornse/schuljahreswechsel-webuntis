@@ -14,14 +14,15 @@
 // ============================================================================
 
 const STATE = {
-  user: null,             // { webuntis_user, anzeigename, rolle } oder null
-  schritte: [],            // volle Checkliste, nur nach Login geladen
-  schuljahre: [],          // nur für Admins geladen
-  rollen: [],               // nur für Admins geladen
-  phasen: [],               // nur für Admins geladen
-  vorlagen: [],              // nur für Admins geladen (Checklisten-Vorlage verwalten)
-  publicDashboard: null,      // { schuljahr_label, schritte } - immer geladen, kein Login nötig
-  ansicht: 'dashboard',        // 'dashboard' | 'checkliste' | 'login'
+  user: null,
+  schritte: [],
+  schuljahre: [],
+  rollen: [],
+  phasen: [],
+  vorlagen: [],
+  publicDashboard: null,
+  ansicht: 'dashboard',
+  gewaehlteSchuljahr: null,  // null = aktives Schuljahr, sonst ID eines archivierten
 };
 
 let dragZustand = null; // { id, phase } - während eines Drag-and-Drop-Vorgangs bei den Vorlagen
@@ -216,7 +217,8 @@ async function ladeOeffentlichesDashboard() {
 }
 
 async function ladeAlles() {
-  const schritteRes = await api('/api/schritte');
+  const param = STATE.gewaehlteSchuljahr ? `?schuljahr_id=${STATE.gewaehlteSchuljahr}` : '';
+  const schritteRes = await api(`/api/schritte${param}`);
   STATE.schritte = schritteRes.schritte;
   STATE.schuljahrId = schritteRes.schuljahr_id;
 
@@ -260,6 +262,12 @@ async function aktiviereSchuljahr(id) {
 
 async function setzeRolle(webuntis_user, rolle, anzeigename) {
   await api('/api/rollen', { method: 'POST', body: { webuntis_user, rolle, anzeigename } });
+  await ladeAlles();
+  render();
+}
+
+async function loescheRolle(webuntis_user) {
+  await api(`/api/rollen/${encodeURIComponent(webuntis_user)}`, { method: 'DELETE' });
   await ladeAlles();
   render();
 }
@@ -418,6 +426,46 @@ function renderChecklist() {
     return container;
   }
 
+  // Schuljahr-Auswahl (für alle eingeloggten Personen sichtbar, nicht nur Admins)
+  // Nur anzeigen wenn mehr als ein Schuljahr existiert - dafür brauchen auch
+  // Nicht-Admins die Schuljahr-Liste. Admins haben sie ohnehin geladen.
+  const alleSchuljahre = STATE.schuljahre.length > 0
+    ? STATE.schuljahre
+    : [{ id: STATE.schuljahrId, label: '(aktuell)', aktiv: 1 }];
+
+  const istArchiv = STATE.gewaehlteSchuljahr !== null &&
+    !alleSchuljahre.find((s) => s.id === STATE.gewaehlteSchuljahr)?.aktiv;
+
+  if (alleSchuljahre.length > 1) {
+    const sjWahl = document.createElement('div');
+    sjWahl.className = 'sj-wahl kein-druck';
+    sjWahl.innerHTML = `
+      <label for="sj-select" style="font-size:11px;color:var(--muted);">Schuljahr:</label>
+      <select id="sj-select">
+        ${alleSchuljahre.map((sj) => `
+          <option value="${sj.id}" ${sj.id === (STATE.gewaehlteSchuljahr ?? STATE.schuljahrId) ? 'selected' : ''}>
+            ${sj.label}${sj.aktiv ? ' (aktiv)' : ''}
+          </option>
+        `).join('')}
+      </select>
+    `;
+    sjWahl.querySelector('#sj-select').addEventListener('change', async (e) => {
+      const gewaehlteId = Number(e.target.value);
+      const gewaehltesSj = alleSchuljahre.find((s) => s.id === gewaehlteId);
+      STATE.gewaehlteSchuljahr = gewaehltesSj?.aktiv ? null : gewaehlteId;
+      await ladeAlles();
+      render();
+    });
+    container.appendChild(sjWahl);
+  }
+
+  if (istArchiv) {
+    const hinweis = document.createElement('p');
+    hinweis.className = 'archiv-hinweis kein-druck';
+    hinweis.textContent = '📂 Archiv-Ansicht – dieses Schuljahr ist abgeschlossen und kann nicht mehr bearbeitet werden.';
+    container.appendChild(hinweis);
+  }
+
   const gesamt = STATE.schritte.length;
   const erledigt = STATE.schritte.filter((s) => s.erledigt).length;
   const prozent = gesamt ? Math.round((erledigt / gesamt) * 100) : 0;
@@ -465,7 +513,7 @@ function renderChecklist() {
 
     if (istParallel && schritt.geplantes_datum === aktivesParallelDatum) {
       // Gleiche Gruppe – zum offenen Block hinzufügen
-      aktiverParallelBlock.appendChild(renderSchritt(schritt));
+      aktiverParallelBlock.appendChild(renderSchritt(schritt, istArchiv));
     } else {
       // Alten Block abschließen
       if (aktiverParallelBlock) {
@@ -482,10 +530,10 @@ function renderChecklist() {
         label.className = 'parallel-gruppe-label';
         label.innerHTML = `<span class="parallel-badge">⇉ parallel – ${formatDatum(schritt.geplantes_datum)}</span>`;
         aktiverParallelBlock.appendChild(label);
-        aktiverParallelBlock.appendChild(renderSchritt(schritt));
+        aktiverParallelBlock.appendChild(renderSchritt(schritt, istArchiv));
         aktivesParallelDatum = schritt.geplantes_datum;
       } else {
-        container.appendChild(renderSchritt(schritt));
+        container.appendChild(renderSchritt(schritt, istArchiv));
       }
     }
   }
@@ -498,9 +546,9 @@ function renderChecklist() {
   return container;
 }
 
-function renderSchritt(schritt) {
+function renderSchritt(schritt, readonly = false) {
   const el = document.createElement('div');
-  el.className = 'schritt' + (schritt.erledigt ? ' erledigt' : '') + (schritt.kann_parallel ? ' parallel' : '');
+  el.className = 'schritt' + (schritt.erledigt ? ' erledigt' : '') + (schritt.kann_parallel ? ' parallel' : '') + (readonly ? ' readonly' : '');
   el.style.setProperty('--accent', schritt.phase_farbe);
 
   const parallelBadge = schritt.kann_parallel
@@ -509,7 +557,7 @@ function renderSchritt(schritt) {
 
   el.innerHTML = `
     <div class="schritt-zeile">
-      <span class="checkbox ${schritt.erledigt ? 'checked' : ''}" data-rolle="checkbox"></span>
+      <span class="checkbox ${schritt.erledigt ? 'checked' : ''} ${readonly ? 'readonly' : ''}" data-rolle="checkbox"></span>
       <span class="schritt-text ${schritt.erledigt ? 'erledigt' : ''}">${schritt.titel}</span>
       ${parallelBadge}
       <span class="chev" data-rolle="chevron">▸</span>
@@ -518,38 +566,42 @@ function renderSchritt(schritt) {
       <div class="detail-text">${markdownZuHtml(schritt.beschreibung)}</div>
       <div class="felder">
         <div class="feld"><label>Verantwortlich</label>
-          <input type="text" data-feld="verantwortlich_anzeigename" value="${schritt.verantwortlich_anzeigename ?? ''}">
+          <input type="text" data-feld="verantwortlich_anzeigename" value="${schritt.verantwortlich_anzeigename ?? ''}" ${readonly ? 'disabled' : ''}>
         </div>
         <div class="feld"><label>Datum</label>
-          <input type="date" data-feld="geplantes_datum" value="${schritt.geplantes_datum ?? ''}">
+          <input type="date" data-feld="geplantes_datum" value="${schritt.geplantes_datum ?? ''}" ${readonly ? 'disabled' : ''}>
         </div>
+        ${!readonly ? `
         <div class="feld"><label>Parallel möglich</label>
           <label class="toggle-wrap">
             <input type="checkbox" data-feld="kann_parallel" ${schritt.kann_parallel ? 'checked' : ''}>
             <span class="toggle-label">für dieses Schuljahr</span>
           </label>
-        </div>
+        </div>` : ''}
       </div>
     </div>
   `;
 
-  el.querySelector('[data-rolle="checkbox"]').addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleSchritt(schritt.id, !schritt.erledigt);
-  });
+  if (!readonly) {
+    el.querySelector('[data-rolle="checkbox"]').addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleSchritt(schritt.id, !schritt.erledigt);
+    });
+  }
 
   el.querySelector('.schritt-zeile').addEventListener('click', () => {
     el.querySelector('[data-rolle="detail"]').classList.toggle('offen');
     el.querySelector('[data-rolle="chevron"]').classList.toggle('offen');
   });
 
-  el.querySelectorAll('[data-feld]').forEach((input) => {
-    const ereignis = input.type === 'checkbox' ? 'change' : 'change';
-    input.addEventListener(ereignis, () => {
-      const wert = input.type === 'checkbox' ? input.checked : input.value;
-      aktualisiereFeld(schritt.id, input.dataset.feld, wert);
+  if (!readonly) {
+    el.querySelectorAll('[data-feld]').forEach((input) => {
+      input.addEventListener('change', () => {
+        const wert = input.type === 'checkbox' ? input.checked : input.value;
+        aktualisiereFeld(schritt.id, input.dataset.feld, wert);
+      });
     });
-  });
+  }
 
   return el;
 }
@@ -755,7 +807,7 @@ function renderZugriffBlock() {
   rollenBlock.innerHTML = `
     <h3 style="font-size:13px;color:var(--muted);margin-top:24px;">Zugriff</h3>
     <table class="admin-tabelle">
-      <thead><tr><th>WebUntis-Kürzel</th><th>Anzeigename</th><th>Rolle</th></tr></thead>
+      <thead><tr><th>WebUntis-Kürzel</th><th>Anzeigename</th><th>Rolle</th><th></th></tr></thead>
       <tbody>
         ${STATE.rollen.map((r) => `
           <tr>
@@ -766,6 +818,13 @@ function renderZugriffBlock() {
                 <option value="mitglied" ${r.rolle === 'mitglied' ? 'selected' : ''}>mitglied</option>
                 <option value="admin" ${r.rolle === 'admin' ? 'selected' : ''}>admin</option>
               </select>
+            </td>
+            <td>
+              <button class="btn-sekundaer btn btn-loeschen" data-loeschen="${r.webuntis_user}"
+                style="width:auto;color:#c0392b;border-color:#c0392b;"
+                ${r.webuntis_user === STATE.user?.webuntis_user ? 'disabled title="Eigenen Account nicht löschbar"' : ''}>
+                entfernen
+              </button>
             </td>
           </tr>
         `).join('')}
@@ -792,6 +851,18 @@ function renderZugriffBlock() {
   rollenBlock.querySelectorAll('select[data-rolle-user]').forEach((select) => {
     select.addEventListener('change', () => {
       setzeRolle(select.dataset.rolleUser, select.value, select.dataset.rolleName);
+    });
+  });
+  rollenBlock.querySelectorAll('[data-loeschen]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const user = btn.dataset.loeschen;
+      if (confirm(`${user} wirklich aus der Zugriffsliste entfernen? Die Person kann sich danach nicht mehr anmelden.`)) {
+        try {
+          await loescheRolle(user);
+        } catch (err) {
+          alert(err.message);
+        }
+      }
     });
   });
   rollenBlock.querySelector('#neue-person-form').addEventListener('submit', (e) => {
