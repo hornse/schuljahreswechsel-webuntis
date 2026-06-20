@@ -20,6 +20,7 @@ const STATE = {
   rollen: [],
   phasen: [],
   vorlagen: [],
+  vorlagenSets: [],
   publicDashboard: null,
   ansicht: 'dashboard',
   gewaehlteSchuljahr: null,  // null = aktives Schuljahr, sonst ID eines archivierten
@@ -207,6 +208,7 @@ async function doLogout() {
   STATE.rollen = [];
   STATE.phasen = [];
   STATE.vorlagen = [];
+  STATE.vorlagenSets = [];
   STATE.ansicht = 'dashboard';
   render();
 }
@@ -223,10 +225,11 @@ async function ladeAlles() {
   STATE.schuljahrId = schritteRes.schuljahr_id;
 
   if (STATE.user?.rolle === 'admin') {
-    STATE.schuljahre = await api('/api/schuljahre');
-    STATE.rollen = await api('/api/rollen');
-    STATE.phasen = await api('/api/phasen');
-    STATE.vorlagen = await api('/api/vorlagen');
+    STATE.schuljahre  = await api('/api/schuljahre');
+    STATE.rollen      = await api('/api/rollen');
+    STATE.phasen      = await api('/api/phasen');
+    STATE.vorlagen    = await api('/api/vorlagen');
+    STATE.vorlagenSets = await api('/api/vorlagen-sets');
   }
 }
 
@@ -246,10 +249,23 @@ async function aktualisiereFeld(id, feld, wert) {
   }
 }
 
-async function neuesSchuljahr(label) {
-  await api('/api/schuljahre', { method: 'POST', body: { label } });
+async function neuesSchuljahr(label, setId = null) {
+  const body = setId ? { label, set_id: setId } : { label };
+  await api('/api/schuljahre', { method: 'POST', body });
   await ladeAlles();
   await ladeOeffentlichesDashboard();
+  render();
+}
+
+async function speichereVorlagenSet(name, beschreibung) {
+  await api('/api/vorlagen-sets', { method: 'POST', body: { name, beschreibung } });
+  await ladeAlles();
+  render();
+}
+
+async function loescheVorlagenSet(id) {
+  await api(`/api/vorlagen-sets/${id}`, { method: 'DELETE' });
+  await ladeAlles();
   render();
 }
 
@@ -772,6 +788,8 @@ function renderAdminBereich() {
 
 function renderSchuljahreBlock() {
   const sjBlock = document.createElement('div');
+
+  // --- Schuljahre-Tabelle ---
   sjBlock.innerHTML = `
     <h3 style="font-size:13px;color:var(--muted);">Schuljahre</h3>
     <table class="admin-tabelle">
@@ -786,19 +804,92 @@ function renderSchuljahreBlock() {
         `).join('')}
       </tbody>
     </table>
+
+    <h3 style="font-size:13px;color:var(--muted);margin-top:20px;">Neues Schuljahr anlegen</h3>
     <form class="inline-form" id="neues-schuljahr-form">
-      <div class="feld"><label>Neues Schuljahr</label><input type="text" id="neues-schuljahr-label" placeholder="2026/2027" required></div>
-      <button class="btn" type="submit" style="width:auto;">Anlegen (kopiert die Vorlage)</button>
+      <div class="feld"><label>Label</label>
+        <input type="text" id="neues-schuljahr-label" placeholder="z. B. 2027/2028" required>
+      </div>
+      <div class="feld"><label>Basis</label>
+        <select id="neues-schuljahr-set">
+          <option value="">Aktuelle Vorlage</option>
+          ${STATE.vorlagenSets.map((s) => `
+            <option value="${s.id}">${s.name} (${s.schritt_anzahl} Schritte)</option>
+          `).join('')}
+        </select>
+      </div>
+      <button class="btn" type="submit" style="width:auto;">Anlegen</button>
     </form>
+    <p style="font-size:11px;color:var(--muted);margin-top:4px;">
+      „Aktuelle Vorlage" kopiert alle aktiven Schritte und Phasen. Ein gespeicherter Snapshot
+      legt eine eigene Kopie der Phasen und Schritte an – nützlich für andere Prozesse.
+    </p>
+
+    <h3 style="font-size:13px;color:var(--muted);margin-top:20px;">Gespeicherte Vorlagen (Snapshots)</h3>
+    <div id="vorlagen-sets-liste">
+      ${STATE.vorlagenSets.length === 0
+        ? '<p style="font-size:12px;color:var(--muted);">Noch keine Snapshots gespeichert.</p>'
+        : STATE.vorlagenSets.map((s) => `
+          <div class="vorlagen-set-zeile">
+            <div>
+              <strong>${s.name}</strong>
+              ${s.beschreibung ? `<span style="font-size:11px;color:var(--muted);margin-left:6px;">${s.beschreibung}</span>` : ''}
+              <span style="font-size:11px;color:var(--muted);margin-left:6px;">
+                · ${s.schritt_anzahl} Schritte · ${s.erstellt_von} · ${s.erstellt_am.slice(0,10)}
+              </span>
+            </div>
+            <button class="btn-sekundaer btn btn-loeschen" data-loeschen-set="${s.id}"
+              style="width:auto;color:#c0392b;border-color:#c0392b;flex-shrink:0;">löschen</button>
+          </div>
+        `).join('')}
+    </div>
+
+    <form class="inline-form" id="neuer-snapshot-form" style="margin-top:10px;">
+      <div class="feld" style="flex:1;"><label>Name</label>
+        <input type="text" id="snapshot-name" placeholder="z. B. WebUntis 2026, Abitur-Prozess" required style="width:100%;">
+      </div>
+      <div class="feld" style="flex:1;"><label>Beschreibung (optional)</label>
+        <input type="text" id="snapshot-beschreibung" placeholder="Kurze Erklärung" style="width:100%;">
+      </div>
+      <button class="btn" type="submit" style="width:auto;">Jetzt einfrieren</button>
+    </form>
+    <p style="font-size:11px;color:var(--muted);margin-top:4px;">
+      „Jetzt einfrieren" speichert den aktuellen Stand aller Phasen und aktiven Schritte als Snapshot.
+    </p>
   `;
+
   sjBlock.querySelectorAll('[data-aktivieren]').forEach((btn) => {
     btn.addEventListener('click', () => aktiviereSchuljahr(btn.dataset.aktivieren));
   });
+
   sjBlock.querySelector('#neues-schuljahr-form').addEventListener('submit', (e) => {
     e.preventDefault();
     const label = sjBlock.querySelector('#neues-schuljahr-label').value.trim();
-    if (label) neuesSchuljahr(label);
+    const setId = sjBlock.querySelector('#neues-schuljahr-set').value || null;
+    if (label) neuesSchuljahr(label, setId ? Number(setId) : null);
   });
+
+  sjBlock.querySelector('#neuer-snapshot-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = sjBlock.querySelector('#snapshot-name').value.trim();
+    const beschreibung = sjBlock.querySelector('#snapshot-beschreibung').value.trim();
+    if (name) speichereVorlagenSet(name, beschreibung || null);
+  });
+
+  sjBlock.querySelectorAll('[data-loeschen-set]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = Number(btn.dataset.loeschenSet);
+      const set = STATE.vorlagenSets.find((s) => s.id === id);
+      if (confirm(`Snapshot „${set?.name}" wirklich löschen? Das kann nicht rückgängig gemacht werden.`)) {
+        try {
+          await loescheVorlagenSet(id);
+        } catch (err) {
+          alert(err.message);
+        }
+      }
+    });
+  });
+
   return sjBlock;
 }
 

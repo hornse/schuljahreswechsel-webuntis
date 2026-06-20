@@ -121,6 +121,12 @@ footer{ padding:14px 20px; text-align:center; font-size:12px; color:var(--muted)
 .dash-phasenname{ font-size:12.5px; min-width:160px; font-family:'IBM Plex Mono',monospace; }
 .dash-schuljahr{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px; color:var(--muted); margin:0 0 14px; }
 
+.vorlagen-set-zeile{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:8px 10px; border:1px solid var(--line); border-radius:6px;
+  background:#fff; margin-bottom:6px;
+}
+
 /* --- Phasen-Verwaltung --- */
 .phasen-liste{ display:flex; flex-direction:column; gap:12px; }
 .phasen-block{
