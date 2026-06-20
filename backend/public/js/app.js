@@ -236,9 +236,12 @@ async function toggleSchritt(id, erledigt) {
 
 async function aktualisiereFeld(id, feld, wert) {
   await api(`/api/schritte/${id}`, { method: 'PATCH', body: { [feld]: wert } });
-  // Bewusst kein sofortiges Neuladen+Rerender bei jedem Tastendruck - das
-  // würde den Fokus aus dem Eingabefeld reißen. Der Wert steht beim
-  // nächsten ladeAlles() (z. B. nach einem Checkbox-Klick) wieder korrekt da.
+  // Kein sofortiges Neuladen bei Textfeldern (würde Fokus aus Eingabefeld reißen).
+  // Bei kann_parallel aber sofort neu rendern damit das Badge aktualisiert wird.
+  if (feld === 'kann_parallel') {
+    await ladeAlles();
+    render();
+  }
 }
 
 async function neuesSchuljahr(label) {
@@ -446,13 +449,18 @@ function renderChecklist() {
 
 function renderSchritt(schritt) {
   const el = document.createElement('div');
-  el.className = 'schritt' + (schritt.erledigt ? ' erledigt' : '');
+  el.className = 'schritt' + (schritt.erledigt ? ' erledigt' : '') + (schritt.kann_parallel ? ' parallel' : '');
   el.style.setProperty('--accent', schritt.phase_farbe);
+
+  const parallelBadge = schritt.kann_parallel
+    ? `<span class="parallel-badge" title="Kann parallel zu anderen Schritten erledigt werden">⇉ parallel</span>`
+    : '';
 
   el.innerHTML = `
     <div class="schritt-zeile">
       <span class="checkbox ${schritt.erledigt ? 'checked' : ''}" data-rolle="checkbox"></span>
       <span class="schritt-text ${schritt.erledigt ? 'erledigt' : ''}">${schritt.titel}</span>
+      ${parallelBadge}
       <span class="chev" data-rolle="chevron">▸</span>
     </div>
     <div class="schritt-detail" data-rolle="detail">
@@ -463,6 +471,12 @@ function renderSchritt(schritt) {
         </div>
         <div class="feld"><label>Datum</label>
           <input type="date" data-feld="geplantes_datum" value="${schritt.geplantes_datum ?? ''}">
+        </div>
+        <div class="feld"><label>Parallel möglich</label>
+          <label class="toggle-wrap">
+            <input type="checkbox" data-feld="kann_parallel" ${schritt.kann_parallel ? 'checked' : ''}>
+            <span class="toggle-label">für dieses Schuljahr</span>
+          </label>
         </div>
       </div>
     </div>
@@ -479,8 +493,10 @@ function renderSchritt(schritt) {
   });
 
   el.querySelectorAll('[data-feld]').forEach((input) => {
-    input.addEventListener('change', () => {
-      aktualisiereFeld(schritt.id, input.dataset.feld, input.value);
+    const ereignis = input.type === 'checkbox' ? 'change' : 'change';
+    input.addEventListener(ereignis, () => {
+      const wert = input.type === 'checkbox' ? input.checked : input.value;
+      aktualisiereFeld(schritt.id, input.dataset.feld, wert);
     });
   });
 
@@ -615,6 +631,7 @@ function renderDashListe(titel, liste, istUeberfaellig) {
     <li>
       <span class="dash-datum ${istUeberfaellig ? 'dash-datum-rot' : ''}">${formatDatum(s.geplantes_datum)}</span>
       <span>${s.titel}</span>
+      ${s.kann_parallel ? '<span class="parallel-badge">⇉</span>' : ''}
     </li>
   `).join('');
   block.innerHTML = `<p class="dash-label">${titel}</p><ul class="dash-liste">${items}</ul>`;
@@ -891,6 +908,10 @@ function renderVorlagenZeile(v) {
         ${STATE.phasen.map((p) => `<option value="${p.id}" ${p.id === v.phase_id ? 'selected' : ''}>${p.name}</option>`).join('')}
       </select>
       <button class="btn-sekundaer btn" data-toggle-aktiv style="width:auto;">${v.aktiv ? 'deaktivieren' : 'reaktivieren'}</button>
+      <label class="toggle-wrap" title="Default parallel f\u00fcr neue Schuljahre" style="margin-left:4px;">
+        <input type="checkbox" data-toggle-parallel ${v.kann_parallel ? 'checked' : ''}>
+        <span class="toggle-label">\u21c9 Default</span>
+      </label>
       <span class="chev" data-rolle="vorlagen-chevron">\u25b8</span>
     </div>
     <div class="schritt-detail" data-rolle="vorlagen-detail" style="padding:0 14px 14px 26px;">
@@ -964,6 +985,9 @@ function renderVorlagenZeile(v) {
   });
   wrapper.querySelector('[data-toggle-aktiv]').addEventListener('click', () => {
     vorlageAktualisieren(v.id, { aktiv: !v.aktiv });
+  });
+  wrapper.querySelector('[data-toggle-parallel]').addEventListener('change', (e) => {
+    vorlageAktualisieren(v.id, { kann_parallel: e.target.checked });
   });
 
   return wrapper;

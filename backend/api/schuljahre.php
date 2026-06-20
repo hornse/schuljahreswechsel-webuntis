@@ -40,12 +40,12 @@ function handleCreateSchuljahr(PDO $db, array $config, array $input): void
         $insert->execute([':label' => $label]);
         $schuljahrId = (int) $db->lastInsertId();
 
-        $vorlagen = $db->query('SELECT id FROM schritt_vorlagen WHERE aktiv = 1')->fetchAll();
+        $vorlagen = $db->query('SELECT id, kann_parallel FROM schritt_vorlagen WHERE aktiv = 1')->fetchAll();
         $insertInstanz = $db->prepare(
-            'INSERT INTO schritt_instanzen (schuljahr_id, vorlage_id) VALUES (:sj, :v)'
+            'INSERT INTO schritt_instanzen (schuljahr_id, vorlage_id, kann_parallel) VALUES (:sj, :v, :kp)'
         );
         foreach ($vorlagen as $vorlage) {
-            $insertInstanz->execute([':sj' => $schuljahrId, ':v' => $vorlage['id']]);
+            $insertInstanz->execute([':sj' => $schuljahrId, ':v' => $vorlage['id'], ':kp' => $vorlage['kann_parallel']]);
         }
 
         $db->commit();

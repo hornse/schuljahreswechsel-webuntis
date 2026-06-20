@@ -168,8 +168,20 @@ footer{ padding:14px 20px; text-align:center; font-size:12px; color:var(--muted)
 .vorlagen-vorschau ul, .vorlagen-vorschau ol{ margin:0 0 6px; padding-left:20px; }
 .detail-text ul, .detail-text ol{ margin:0 0 10px; padding-left:20px; }
 
-/* ============================================================
-   Druckansicht (@media print)
+/* --- Parallel-Badge --- */
+.parallel-badge{
+  font-size:10.5px; font-family:'IBM Plex Mono',monospace; letter-spacing:.03em;
+  color:#fff; background:var(--accent, #5B6FA8); border-radius:4px;
+  padding:1px 6px; flex-shrink:0; white-space:nowrap;
+}
+.toggle-wrap{ display:flex; align-items:center; gap:4px; cursor:pointer; }
+.toggle-wrap input[type="checkbox"]{ width:14px; height:14px; cursor:pointer; accent-color:var(--accent-default); }
+.toggle-label{ font-size:11px; color:var(--muted); white-space:nowrap; }
+
+@media print {
+  .parallel-badge{ background:#555 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .toggle-wrap{ display:none; }
+}
    Zeigt die Checkliste sauber auf Papier:
    - Header/Footer bleiben, Navigation/Buttons verschwinden
    - Alle Schritte ausgeklappt (detail-Bereich immer sichtbar)

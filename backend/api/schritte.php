@@ -23,6 +23,7 @@ function handleListSchritte(PDO $db): void
     $stmt = $db->prepare(
         'SELECT si.id, si.erledigt, si.verantwortlich_user, si.verantwortlich_anzeigename,
                 si.geplantes_datum, si.erledigt_am, si.erledigt_von, si.kommentar,
+                si.kann_parallel,
                 p.name AS phase, p.farbe AS phase_farbe, p.reihenfolge AS phase_reihenfolge,
                 sv.reihenfolge, sv.titel, sv.beschreibung
          FROM schritt_instanzen si
@@ -57,6 +58,11 @@ function handleUpdateSchritt(PDO $db, array $config, array $input, array $params
             $sets[] = "$feld = :$feld";
             $werte[":$feld"] = $input[$feld];
         }
+    }
+
+    if (array_key_exists('kann_parallel', $input)) {
+        $sets[]                  = 'kann_parallel = :kann_parallel';
+        $werte[':kann_parallel'] = $input['kann_parallel'] ? 1 : 0;
     }
 
     if (array_key_exists('erledigt', $input)) {

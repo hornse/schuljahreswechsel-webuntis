@@ -19,7 +19,8 @@ function handleListVorlagen(PDO $db): void
     Guard::requireAdmin($db);
     $rows = $db->query(
         'SELECT sv.id, sv.phase_id, p.name AS phase, p.farbe AS phase_farbe,
-                p.reihenfolge AS phase_reihenfolge, sv.reihenfolge, sv.titel, sv.beschreibung, sv.aktiv
+                p.reihenfolge AS phase_reihenfolge, sv.reihenfolge, sv.titel,
+                sv.beschreibung, sv.aktiv, sv.kann_parallel
          FROM schritt_vorlagen sv
          JOIN phasen p ON p.id = sv.phase_id
          ORDER BY p.reihenfolge, sv.reihenfolge'
@@ -59,8 +60,8 @@ function handleCreateVorlage(PDO $db, array $config, array $input): void
         $naechsteReihenfolge = (int) $maxStmt->fetchColumn() + 1;
 
         $insert = $db->prepare(
-            'INSERT INTO schritt_vorlagen (phase_id, reihenfolge, titel)
-             VALUES (:phase_id, :reihenfolge, :titel)'
+            'INSERT INTO schritt_vorlagen (phase_id, reihenfolge, titel, kann_parallel)
+             VALUES (:phase_id, :reihenfolge, :titel, 0)'
         );
         $insert->execute([
             ':phase_id'    => $phaseId,
@@ -72,7 +73,7 @@ function handleCreateVorlage(PDO $db, array $config, array $input): void
         $aktivesSchuljahr = $db->query('SELECT id FROM schuljahre WHERE aktiv = 1 LIMIT 1')->fetchColumn();
         if ($aktivesSchuljahr) {
             $db->prepare(
-                'INSERT INTO schritt_instanzen (schuljahr_id, vorlage_id) VALUES (:sj, :v)'
+                'INSERT INTO schritt_instanzen (schuljahr_id, vorlage_id, kann_parallel) VALUES (:sj, :v, 0)'
             )->execute([':sj' => $aktivesSchuljahr, ':v' => $vorlageId]);
         }
 
@@ -116,6 +117,11 @@ function handleUpdateVorlage(PDO $db, array $config, array $input, array $params
     if (array_key_exists('aktiv', $input)) {
         $sets[]         = 'aktiv = :aktiv';
         $werte[':aktiv'] = $input['aktiv'] ? 1 : 0;
+    }
+
+    if (array_key_exists('kann_parallel', $input)) {
+        $sets[]                  = 'kann_parallel = :kann_parallel';
+        $werte[':kann_parallel'] = $input['kann_parallel'] ? 1 : 0;
     }
 
     // Phasenwechsel: ans Ende der neuen Phase anhängen
