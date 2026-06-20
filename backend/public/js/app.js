@@ -27,7 +27,39 @@ const STATE = {
 let dragZustand = null; // { id, phase } - während eines Drag-and-Drop-Vorgangs bei den Vorlagen
 
 // ============================================================================
-// Minimaler Markdown-Renderer für das Notizfeld ("weiterführende Infos")
+// Phasen-Anzeigename mit automatischer Nummerierung
+// ============================================================================
+// Die Nummer wird NICHT mehr im Datenbank-Namen gespeichert, sondern zur
+// Laufzeit aus der Reihenfolgeposition berechnet. Das stellt sicher dass
+// nach einem Drag-and-Drop die Nummern immer korrekt sind.
+//
+// phasenListe ist entweder STATE.phasen (nach Login, volle Objekte) oder
+// wird aus den Schritten selbst abgeleitet (öffentliches Dashboard, wo
+// STATE.phasen nicht geladen ist).
+
+function phasenAnzeigeName(phaseName, phasenReihenfolge, alleSchritte) {
+  // Aus allen Schritten die eindeutige, sortierte Phasen-Reihenfolge ableiten
+  const reihenfolgeMap = new Map();
+  for (const s of alleSchritte) {
+    if (!reihenfolgeMap.has(s.phase)) {
+      reihenfolgeMap.set(s.phase, s.phase_reihenfolge ?? 0);
+    }
+  }
+  const sortiert = [...reihenfolgeMap.entries()].sort((a, b) => a[1] - b[1]);
+  const index = sortiert.findIndex(([name]) => name === phaseName);
+  const nummer = index >= 0 ? index + 1 : phasenReihenfolge;
+  // Namen ohne vorangestellte Zahl+Punkt ausgeben (falls noch drin)
+  const nameOhneNummer = phaseName.replace(/^\d+\.\s*/, '');
+  return `${nummer}. ${nameOhneNummer}`;
+}
+
+// Variante für STATE.phasen (im Admin-Bereich, wo wir die volle Liste haben)
+function phasenAnzeigeNameAusListe(phase) {
+  const index = STATE.phasen.findIndex((p) => p.id === phase.id);
+  const nameOhneNummer = phase.name.replace(/^\d+\.\s*/, '');
+  return index >= 0 ? `${index + 1}. ${nameOhneNummer}` : phase.name;
+}
+
 // ============================================================================
 // Bewusst kein externes Markdown-Paket (passt zur Build-losen, abhängigkeits-
 // freien Philosophie dieser App) und bewusst keine vollständige Markdown-
@@ -392,6 +424,7 @@ function renderChecklist() {
   fortschritt.innerHTML = `
     <div class="progress-track"><div class="progress-fill" style="width:${prozent}%"></div></div>
     <span class="progress-label">${erledigt} / ${gesamt}</span>
+    <button class="btn-sekundaer btn kein-druck" onclick="window.print()" title="Checkliste drucken" style="margin-left:auto;">🖨 Drucken</button>
   `;
   container.appendChild(fortschritt);
 
@@ -402,7 +435,7 @@ function renderChecklist() {
       const h = document.createElement('div');
       h.className = 'phase-title';
       h.style.color = schritt.phase_farbe;
-      h.textContent = aktuellePhase;
+      h.textContent = phasenAnzeigeName(schritt.phase, schritt.phase_reihenfolge, STATE.schritte);
       container.appendChild(h);
     }
     container.appendChild(renderSchritt(schritt));
@@ -498,7 +531,7 @@ function berechneDashboardDaten(liste) {
   const phasen = new Map();
   for (const s of liste) {
     if (!phasen.has(s.phase)) {
-      phasen.set(s.phase, { farbe: s.phase_farbe, gesamt: 0, erledigt: 0 });
+      phasen.set(s.phase, { farbe: s.phase_farbe, reihenfolge: s.phase_reihenfolge ?? 0, gesamt: 0, erledigt: 0 });
     }
     const eintrag = phasen.get(s.phase);
     eintrag.gesamt += 1;
@@ -535,8 +568,7 @@ function renderDashboard() {
   aktuellBlock.className = 'dash-block dash-aktuell';
   aktuellBlock.style.setProperty('--accent', aktuell?.phase_farbe ?? 'var(--accent-default)');
   if (aktuell) {
-    // "Verantwortlich" existiert nur in den vollen (eingeloggten) Daten.
-    const metaTeile = [aktuell.phase];
+    const metaTeile = [phasenAnzeigeName(aktuell.phase, aktuell.phase_reihenfolge, liste)];
     if (aktuell.verantwortlich_anzeigename !== undefined) {
       metaTeile.push(aktuell.verantwortlich_anzeigename || 'noch niemand zugewiesen');
     }
@@ -565,7 +597,7 @@ function renderDashboard() {
     const zeile = document.createElement('div');
     zeile.className = 'dash-phasenzeile';
     zeile.innerHTML = `
-      <span class="dash-phasenname" style="color:${daten.farbe}">${phase}</span>
+      <span class="dash-phasenname" style="color:${daten.farbe}">${phasenAnzeigeName(phase, daten.reihenfolge, liste)}</span>
       <div class="progress-track" style="flex:1;"><div class="progress-fill" style="width:${prozent}%;background:${daten.farbe}"></div></div>
       <span class="progress-label">${daten.erledigt}/${daten.gesamt}</span>
     `;
@@ -768,17 +800,21 @@ function renderPhasenBlock(phase, vorlagen) {
   const kopf = document.createElement('div');
   kopf.className = 'phasen-kopf';
   kopf.style.setProperty('--phase-farbe', phase.farbe);
+  const nameOhneNummer = phase.name.replace(/^\d+\.\s*/, '');
+  const nummer = STATE.phasen.findIndex((p) => p.id === phase.id) + 1;
   kopf.innerHTML = `
     <span class="zieh-griff phasen-griff" title="Phase verschieben">\u29bf</span>
     <input type="color" class="phasen-farbe-picker" value="${phase.farbe}" title="Farbe \u00e4ndern">
-    <input type="text" class="phasen-name-feld" value="${phase.name}">
+    <span class="phasen-nummer" style="color:var(--phase-farbe);font-weight:700;font-size:14px;flex-shrink:0;">${nummer}.</span>
+    <input type="text" class="phasen-name-feld" value="${nameOhneNummer}" placeholder="Phasenname">
   `;
 
   kopf.querySelector('.phasen-farbe-picker').addEventListener('change', (e) => {
     phaseAktualisieren(phase.id, { farbe: e.target.value });
   });
   kopf.querySelector('.phasen-name-feld').addEventListener('change', (e) => {
-    phaseAktualisieren(phase.id, { name: e.target.value });
+    // Nummer nie im Namen speichern - nur den reinen Namen ohne Präfix
+    phaseAktualisieren(phase.id, { name: e.target.value.replace(/^\d+\.\s*/, '') });
   });
 
   wrapper.addEventListener('dragstart', (e) => {

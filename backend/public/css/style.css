@@ -18,10 +18,13 @@ body{
   min-height:100vh;
   display:flex;
   flex-direction:column;
+  align-items:stretch;
 }
 header{
   padding:28px 20px 16px;
   border-bottom:1px solid var(--line);
+  width:100%;
+  box-sizing:border-box;
 }
 .eyebrow{
   font-family:'IBM Plex Mono',monospace;
@@ -30,7 +33,7 @@ header{
 }
 h1{ font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:700; margin:0; }
 
-main{ flex:1; padding:20px; max-width:760px; margin:0 auto; width:100%; }
+main{ flex:1; padding:20px; max-width:760px; margin-left:auto; margin-right:auto; width:100%; box-sizing:border-box; }
 
 footer{ padding:14px 20px; text-align:center; font-size:12px; color:var(--muted); }
 
@@ -164,3 +167,69 @@ footer{ padding:14px 20px; text-align:center; font-size:12px; color:var(--muted)
 }
 .vorlagen-vorschau ul, .vorlagen-vorschau ol{ margin:0 0 6px; padding-left:20px; }
 .detail-text ul, .detail-text ol{ margin:0 0 10px; padding-left:20px; }
+
+/* ============================================================
+   Druckansicht (@media print)
+   Zeigt die Checkliste sauber auf Papier:
+   - Header/Footer bleiben, Navigation/Buttons verschwinden
+   - Alle Schritte ausgeklappt (detail-Bereich immer sichtbar)
+   - Farben bleiben (phase-Akzente), aber Hintergründe weg
+   - Jede Phase beginnt möglichst nicht mitten auf einer Seite
+   ============================================================ */
+@media print {
+  @page { margin: 20mm 15mm; }
+
+  /* Alles ausblenden was nicht zur Checkliste gehört */
+  .kein-druck,
+  .top-leiste,
+  footer,
+  .admin-bereich,
+  .progress-wrap,
+  .chev,
+  .felder label,
+  .schritt-zeile [data-rolle="chevron"] { display: none !important; }
+
+  body { background: #fff; font-size: 11pt; }
+  header { border-bottom: 1pt solid #ccc; padding: 10mm 0 4mm; }
+  h1 { font-size: 16pt; }
+  main { max-width: 100%; padding: 0; }
+
+  /* Alle Detail-Bereiche aufklappen */
+  .schritt-detail { display: block !important; padding: 0 0 6pt 24pt; }
+
+  /* Schritte kompakter */
+  .schritt {
+    border: 0.5pt solid #ccc;
+    border-left: 3pt solid var(--accent, #5B6FA8);
+    margin-bottom: 4pt;
+    page-break-inside: avoid;
+  }
+  .schritt-zeile { padding: 6pt 8pt; }
+  .schritt-text { font-size: 10.5pt; }
+  .detail-text { font-size: 9.5pt; color: #555; margin: 0 0 4pt; }
+
+  /* Verantwortlich + Datum als Text ausgeben */
+  .felder { display: flex; gap: 16pt; flex-wrap: wrap; margin-bottom: 4pt; }
+  .feld { display: flex; flex-direction: column; gap: 1pt; }
+  .feld input {
+    border: none; background: none; padding: 0;
+    font-size: 9.5pt; color: #333;
+  }
+
+  /* Checkbox als Kästchen */
+  .checkbox {
+    width: 10pt; height: 10pt; border: 1pt solid #999;
+    border-radius: 2pt; flex-shrink: 0; margin-top: 2pt;
+    background: none !important;
+  }
+  .checkbox.checked::after { content: '✓'; font-size: 8pt; display: block; text-align: center; line-height: 10pt; }
+
+  /* Phasen-Überschriften */
+  .phase-title {
+    font-size: 12pt; font-weight: 700; margin: 10pt 0 4pt;
+    page-break-after: avoid;
+  }
+
+  /* Links als Text */
+  a::after { content: ' (' attr(href) ')'; font-size: 8pt; color: #666; }
+}
