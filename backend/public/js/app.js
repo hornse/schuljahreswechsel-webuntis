@@ -431,17 +431,68 @@ function renderChecklist() {
   `;
   container.appendChild(fortschritt);
 
+  // Datum-basierte Parallel-Erkennung: alle Daten bei denen mehr als
+  // ein Schritt dasselbe geplantes_datum hat = parallele Schritte.
+  const datumZaehlungen = new Map();
+  for (const s of STATE.schritte) {
+    if (s.geplantes_datum) {
+      datumZaehlungen.set(s.geplantes_datum, (datumZaehlungen.get(s.geplantes_datum) ?? 0) + 1);
+    }
+  }
+  const parallelDaten = new Set([...datumZaehlungen.entries()].filter(([, n]) => n > 1).map(([d]) => d));
+
   let aktuellePhase = null;
+  let aktiverParallelBlock = null; // aktuell offener Parallel-Wrapper
+  let aktivesParallelDatum = null;
+
   for (const schritt of STATE.schritte) {
     if (schritt.phase !== aktuellePhase) {
       aktuellePhase = schritt.phase;
+      // Offenen Parallel-Block schließen wenn Phase wechselt
+      if (aktiverParallelBlock) {
+        container.appendChild(aktiverParallelBlock);
+        aktiverParallelBlock = null;
+        aktivesParallelDatum = null;
+      }
       const h = document.createElement('div');
       h.className = 'phase-title';
       h.style.color = schritt.phase_farbe;
       h.textContent = phasenAnzeigeName(schritt.phase, schritt.phase_reihenfolge, STATE.schritte);
       container.appendChild(h);
     }
-    container.appendChild(renderSchritt(schritt));
+
+    const istParallel = schritt.geplantes_datum && parallelDaten.has(schritt.geplantes_datum);
+
+    if (istParallel && schritt.geplantes_datum === aktivesParallelDatum) {
+      // Gleiche Gruppe – zum offenen Block hinzufügen
+      aktiverParallelBlock.appendChild(renderSchritt(schritt));
+    } else {
+      // Alten Block abschließen
+      if (aktiverParallelBlock) {
+        container.appendChild(aktiverParallelBlock);
+        aktiverParallelBlock = null;
+        aktivesParallelDatum = null;
+      }
+
+      if (istParallel) {
+        // Neuen Parallel-Block eröffnen
+        aktiverParallelBlock = document.createElement('div');
+        aktiverParallelBlock.className = 'parallel-gruppe';
+        const label = document.createElement('div');
+        label.className = 'parallel-gruppe-label';
+        label.innerHTML = `<span class="parallel-badge">⇉ parallel – ${formatDatum(schritt.geplantes_datum)}</span>`;
+        aktiverParallelBlock.appendChild(label);
+        aktiverParallelBlock.appendChild(renderSchritt(schritt));
+        aktivesParallelDatum = schritt.geplantes_datum;
+      } else {
+        container.appendChild(renderSchritt(schritt));
+      }
+    }
+  }
+
+  // Letzten offenen Block noch anhängen
+  if (aktiverParallelBlock) {
+    container.appendChild(aktiverParallelBlock);
   }
 
   return container;
@@ -544,6 +595,15 @@ function berechneDashboardDaten(liste) {
     .filter((s) => s.geplantes_datum && s.geplantes_datum >= heute && s.geplantes_datum <= in14Tagen)
     .sort((a, b) => a.geplantes_datum.localeCompare(b.geplantes_datum));
 
+  // Daten mit mehr als einem offenen Schritt = parallel
+  const datumZaehlungen = new Map();
+  for (const s of offen) {
+    if (s.geplantes_datum) {
+      datumZaehlungen.set(s.geplantes_datum, (datumZaehlungen.get(s.geplantes_datum) ?? 0) + 1);
+    }
+  }
+  const parallelDaten = new Set([...datumZaehlungen.entries()].filter(([, n]) => n > 1).map(([d]) => d));
+
   const phasen = new Map();
   for (const s of liste) {
     if (!phasen.has(s.phase)) {
@@ -554,7 +614,7 @@ function berechneDashboardDaten(liste) {
     if (s.erledigt) eintrag.erledigt += 1;
   }
 
-  return { aktuell, ueberfaellig, demnaechst, phasen };
+  return { aktuell, ueberfaellig, demnaechst, phasen, parallelDaten };
 }
 
 function renderDashboard() {
@@ -578,7 +638,7 @@ function renderDashboard() {
     return container;
   }
 
-  const { aktuell, ueberfaellig, demnaechst, phasen } = berechneDashboardDaten(liste);
+  const { aktuell, ueberfaellig, demnaechst, phasen, parallelDaten } = berechneDashboardDaten(liste);
 
   const aktuellBlock = document.createElement('div');
   aktuellBlock.className = 'dash-block dash-aktuell';
@@ -588,9 +648,11 @@ function renderDashboard() {
     if (aktuell.verantwortlich_anzeigename !== undefined) {
       metaTeile.push(aktuell.verantwortlich_anzeigename || 'noch niemand zugewiesen');
     }
+    const parallelHinweis = (aktuell.kann_parallel || (aktuell.geplantes_datum && parallelDaten.has(aktuell.geplantes_datum)))
+      ? `<span class="parallel-badge" style="margin-left:6px;">⇉ parallel</span>` : '';
     aktuellBlock.innerHTML = `
       <p class="dash-label">Aktuell dran</p>
-      <p class="dash-titel" style="color:${aktuell.phase_farbe}">${aktuell.titel}</p>
+      <p class="dash-titel" style="color:${aktuell.phase_farbe}">${aktuell.titel}${parallelHinweis}</p>
       <p class="dash-meta">${metaTeile.join(' · ')}</p>
     `;
   } else {
@@ -599,10 +661,10 @@ function renderDashboard() {
   container.appendChild(aktuellBlock);
 
   if (ueberfaellig.length) {
-    container.appendChild(renderDashListe('Überfällig', ueberfaellig, true));
+    container.appendChild(renderDashListe('Überfällig', ueberfaellig, true, parallelDaten));
   }
   if (demnaechst.length) {
-    container.appendChild(renderDashListe('Demnächst (14 Tage)', demnaechst, false));
+    container.appendChild(renderDashListe('Demnächst (14 Tage)', demnaechst, false, parallelDaten));
   }
 
   const phasenBlock = document.createElement('div');
@@ -624,20 +686,22 @@ function renderDashboard() {
   return container;
 }
 
-function renderDashListe(titel, liste, istUeberfaellig) {
+function renderDashListe(titel, liste, istUeberfaellig, parallelDaten = new Set()) {
   const block = document.createElement('div');
   block.className = 'dash-block';
-  const items = liste.map((s) => `
-    <li>
-      <span class="dash-datum ${istUeberfaellig ? 'dash-datum-rot' : ''}">${formatDatum(s.geplantes_datum)}</span>
-      <span>${s.titel}</span>
-      ${s.kann_parallel ? '<span class="parallel-badge">⇉</span>' : ''}
-    </li>
-  `).join('');
+  const items = liste.map((s) => {
+    const istParallel = s.kann_parallel || (s.geplantes_datum && parallelDaten.has(s.geplantes_datum));
+    return `
+      <li>
+        <span class="dash-datum ${istUeberfaellig ? 'dash-datum-rot' : ''}">${formatDatum(s.geplantes_datum)}</span>
+        <span>${s.titel}</span>
+        ${istParallel ? '<span class="parallel-badge">⇉</span>' : ''}
+      </li>
+    `;
+  }).join('');
   block.innerHTML = `<p class="dash-label">${titel}</p><ul class="dash-liste">${items}</ul>`;
   return block;
 }
-
 // ============================================================================
 // Admin-Bereich
 // ============================================================================

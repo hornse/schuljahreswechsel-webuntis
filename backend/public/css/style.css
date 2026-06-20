@@ -168,6 +168,17 @@ footer{ padding:14px 20px; text-align:center; font-size:12px; color:var(--muted)
 .vorlagen-vorschau ul, .vorlagen-vorschau ol{ margin:0 0 6px; padding-left:20px; }
 .detail-text ul, .detail-text ol{ margin:0 0 10px; padding-left:20px; }
 
+/* --- Parallel-Gruppe in der Checkliste --- */
+.parallel-gruppe{
+  border:2px dashed var(--line); border-radius:10px;
+  padding:6px 6px 6px; margin-bottom:8px; background:#fafaf8;
+}
+.parallel-gruppe-label{
+  padding:2px 6px 6px; display:flex; align-items:center; gap:6px;
+}
+.parallel-gruppe .schritt{ margin-bottom:4px; }
+.parallel-gruppe .schritt:last-child{ margin-bottom:0; }
+
 /* --- Parallel-Badge --- */
 .parallel-badge{
   font-size:10.5px; font-family:'IBM Plex Mono',monospace; letter-spacing:.03em;
