@@ -1,10 +1,16 @@
+/*!
+ * Schuljahreswechsel WebUntis
+ * Copyright (C) 2026 Sebastian Horn, Friedrich-Rückert-Gymnasium Düsseldorf
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * https://github.com/hornse/schuljahreswechsel-webuntis
+ */
 // ============================================================================
 // Schuljahreswechsel WebUntis - Frontend
 // ============================================================================
 // Bewusst ohne Build-Schritt/Framework: ein STATE-Objekt hält den aktuellen
 // Zustand, render() baut daraus jedes Mal die komplette #app-Ansicht neu auf.
 // Das ist für die Größe dieser App einfacher zu warten als ein "richtiges"
-// Reaktivitätssystem und entspricht dem Stil von Projektstunden NRW.
+// Reaktivitätssystem und entspricht dem Stil anderer schulischer Tools.
 //
 // Seit der Erweiterung um die öffentliche Landingpage gibt es zwei
 // Datenquellen für die Dashboard-Ansicht: STATE.publicDashboard (ohne
