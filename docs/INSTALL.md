@@ -1,99 +1,131 @@
-# Installation auf Uberspace
+# Installation
 
-## 1. Code auf den Server bringen
+## Lokal (Entwicklung)
 
-Per Git (empfohlen, siehe Haupt-Gespräch zum Git-Workflow) oder einmalig
-per `scp`/`rsync`. Der Code darf irgendwo im Uberspace-Home liegen, z. B.
-`~/schuljahreswechsel-webuntis/`.
+```bash
+cp config/config.example.php config/config.php
+# config.php bearbeiten (siehe Abschnitt 3)
 
-## 2. Domain einrichten und auf backend/public zeigen lassen
+sqlite3 data/app.sqlite < migrations/001_init.sql
+sqlite3 data/app.sqlite < migrations/002_seed_schritte.sql
+sqlite3 data/app.sqlite < migrations/003_phasen.sql
+sqlite3 data/app.sqlite < migrations/004_parallel_flag.sql
+sqlite3 data/app.sqlite < migrations/005_vorlagen_sets.sql
 
-Wichtig, und beim ersten Mal leicht falsch zu machen: Uberspace liefert
-standardmäßig für **alle** Domains denselben Inhalt aus `~/html/` aus -
-auch ein Ordner *innerhalb* von `~/html/`, der wie eure neue Domain
-heißt, wird NICHT automatisch als eigener DocumentRoot erkannt. Der
-richtige Mechanismus dafür ("Additional DocumentRoots") ist ein
-Geschwisterordner bzw. Symlink **neben** `html/`, nicht darin:
-
-```
-uberspace web domain add DEINE-SUBDOMAIN.deine-domain.de
+php -S localhost:8000 -t backend/public dev-router.php
 ```
 
-Da der Code per Git-Hook nach `/var/www/virtual/DEIN_USER/schuljahreswechsel-webuntis-src`
-ausgecheckt wird (siehe Hinweis unten zu Symlinks in `/home`), den Symlink
-direkt daneben anlegen:
+---
 
-```
-cd /var/www/virtual/DEIN_USER
-ln -s schuljahreswechsel-webuntis-src/backend/public DEINE-SUBDOMAIN.deine-domain.de
-```
+## Uberspace 7 (Produktion)
 
-**Warum nicht einfach `~/schuljahreswechsel-webuntis` im Home-Verzeichnis
-auschecken lassen?** Apache hat auf Uberspace keine Zugriffsrechte auf
-`/home` - ein Symlink von dort aus würde nie funktionieren, egal wie er
-benannt ist. Der Git-Hook (`~/repos/schuljahreswechsel-webuntis.git/hooks/post-receive`)
-muss daher direkt nach `/var/www/virtual/DEIN_USER/schuljahreswechsel-webuntis-src`
-auschecken:
+### 1. Code auf den Server bringen
 
-```
+Empfohlen per Git mit zwei Remotes (GitHub + Uberspace bare repo):
+
+```bash
+# Einmalig auf dem Server: bare repo anlegen
+mkdir -p ~/repos/schuljahreswechsel-webuntis.git
+cd ~/repos/schuljahreswechsel-webuntis.git
+git init --bare
+
+# post-receive Hook (Datei anlegen, ausführbar machen)
+cat > hooks/post-receive << 'EOF'
+#!/bin/bash
 GIT_WORK_TREE=/var/www/virtual/DEIN_USER/schuljahreswechsel-webuntis-src git checkout -f main
+EOF
+chmod +x hooks/post-receive
 ```
 
-Zuletzt: für diesen DocumentRoot-Mechanismus verlangt die Uberspace-Doku
-eine `RewriteBase /`-Zeile ganz oben in der `.htaccess` - die ist bereits
-in `backend/public/.htaccess` enthalten, falls sie fehlt (z. B. nach
-einem manuellen Test), einfach ergänzen.
+Wichtig: der Hook checkt direkt nach `/var/www/virtual/` aus, nicht nach
+`~/home/` – Apache hat auf Uberspace keine Rechte auf `/home`, Symlinks
+von dort funktionieren nie.
 
-## 3. Konfiguration anlegen
+### 2. Domain und DocumentRoot einrichten
 
+```bash
+uberspace web domain add schuljahreswechsel.deine-domain.de
+
+# Symlink als "Additional DocumentRoot" direkt neben html/ anlegen
+cd /var/www/virtual/DEIN_USER
+ln -s schuljahreswechsel-webuntis-src/backend/public schuljahreswechsel.deine-domain.de
 ```
-cd schuljahreswechsel-webuntis
+
+Ein Symlink *innerhalb* von `html/` funktioniert nicht – er muss
+Geschwister von `html/` sein. Die `.htaccess` enthält bereits
+`RewriteBase /`, das für diesen Mechanismus erforderlich ist.
+
+### 3. Konfiguration anlegen
+
+```bash
+cd /var/www/virtual/DEIN_USER/schuljahreswechsel-webuntis-src
 cp config/config.example.php config/config.php
 ```
 
-Dann `config/config.php` öffnen und mindestens setzen:
+In `config/config.php` mindestens setzen:
 
-- `webuntis.base_url` (z. B. `https://SERVERNAME.webuntis.com`)
-- `webuntis.school` (Schulkennung, wie in der WebUntis-URL)
-
-Diese beiden Werte stehen vermutlich schon irgendwo in der MRBS-
-Konfiguration (`$auth["web_untis"]["school"]` /
-`$auth["web_untis"]["base_url"]`) - dort einfach abschreiben.
-
-## 4. Datenbank anlegen
-
+```php
+'webuntis' => [
+    'base_url' => 'https://SERVERNAME.webuntis.com',
+    'school'   => 'SCHULKENNUNG',   // wie in der WebUntis-URL
+],
 ```
+
+Diese Werte stehen in der MRBS-Konfiguration unter
+`$auth["web_untis"]["school"]` und `$auth["web_untis"]["base_url"]`.
+
+### 4. Datenbank anlegen
+
+```bash
+cd /var/www/virtual/DEIN_USER/schuljahreswechsel-webuntis-src
 sqlite3 data/app.sqlite < migrations/001_init.sql
 sqlite3 data/app.sqlite < migrations/002_seed_schritte.sql
+sqlite3 data/app.sqlite < migrations/003_phasen.sql
+sqlite3 data/app.sqlite < migrations/004_parallel_flag.sql
+sqlite3 data/app.sqlite < migrations/005_vorlagen_sets.sql
 ```
 
-`sqlite3` ist auf Uberspace vorinstalliert. Die Datei `data/app.sqlite`
-braucht Schreibrechte für den PHP-Prozess - auf Uberspace ist das per
-Default der Fall, da PHP unter dem eigenen Uberspace-Benutzer läuft.
+`sqlite3` ist auf Uberspace vorinstalliert. PHP läuft unter dem eigenen
+Uberspace-Account, daher hat es automatisch Schreibrechte auf `data/`.
 
-## 5. Erste:n Admin einrichten
+### 5. Erste:n Admin einrichten
 
-Seit der Zugriffsbeschränkung aufs Untis/WebUntis-Team reicht ein
-korrektes WebUntis-Passwort allein nicht mehr aus, um sich anzumelden -
-die Person muss zusätzlich in `benutzer_rollen` stehen. Das betrifft auch
-die allererste Person: es gibt bewusst keine Oberfläche, um sich selbst
-freizuschalten, sonst könnte das jede:r mit einem WebUntis-Account tun.
+Ein korrektes WebUntis-Passwort allein reicht nicht – jede Person muss
+vorab in `benutzer_rollen` stehen. Den ersten Admin per SQL eintragen,
+bevor er/sie sich das erste Mal anmeldet:
 
-Stattdessen den ersten Admin direkt per SQL eintragen, BEVOR diese Person
-sich zum ersten Mal anmeldet:
-
-```
+```bash
 sqlite3 data/app.sqlite \
-  "INSERT INTO benutzer_rollen (webuntis_user, anzeigename, rolle) VALUES ('DEIN_KUERZEL', 'Dein Name', 'admin');"
+  "INSERT INTO benutzer_rollen (webuntis_user, anzeigename, rolle)
+   VALUES ('DEIN_KUERZEL', 'Dein Name', 'admin');"
 ```
 
-Danach ganz normal mit den eigenen WebUntis-Zugangsdaten anmelden - der
-Admin-Bereich erscheint unten auf der Seite. Weitere Personen (admin oder
-mitglied) lassen sich danach über "Zugriff" → "Freigeben" in der
-Oberfläche eintragen, ganz ohne erneutes SQL.
+Danach normal anmelden – der Admin-Bereich erscheint am Ende der Seite.
+Weitere Personen lassen sich über „Zugriff → Freigeben" ohne SQL eintragen.
 
-## 6. Testen
+### 6. Deployment-Workflow (laufender Betrieb)
 
-`https://swj.deine-domain.de` aufrufen, mit eigenen WebUntis-Zugangsdaten
-anmelden, ein Schuljahr anlegen (Admin-Bereich) und ein paar Schritte
-durchklicken.
+```bash
+# Lokal: Änderungen committen und auf beide Remotes pushen
+git push github main
+git push uberspace main
+```
+
+Der post-receive Hook auf Uberspace aktualisiert den Code automatisch.
+Wenn eine neue Migration dazukommt (z. B. nach einem Update), muss sie
+einmalig manuell auf dem Server eingespielt werden:
+
+```bash
+sqlite3 /var/www/virtual/DEIN_USER/schuljahreswechsel-webuntis-src/data/app.sqlite \
+  < /var/www/virtual/DEIN_USER/schuljahreswechsel-webuntis-src/migrations/NNN_name.sql
+```
+
+### Migrationen im Überblick
+
+| Datei | Inhalt |
+|---|---|
+| `001_init.sql` | Basis-Schema: alle Tabellen, Indizes |
+| `002_seed_schritte.sql` | 11 Standard-Schritte für den WebUntis-Wechsel |
+| `003_phasen.sql` | Phasen als eigene Tabelle (aus schritt_vorlagen extrahiert) |
+| `004_parallel_flag.sql` | `kann_parallel`-Flag auf Vorlagen und Instanzen |
+| `005_vorlagen_sets.sql` | Vorlagen-Snapshots (vorlagen_sets, vorlagen_set_phasen, vorlagen_set_schritte) |

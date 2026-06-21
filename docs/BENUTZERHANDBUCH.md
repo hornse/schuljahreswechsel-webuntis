@@ -1,98 +1,169 @@
 # Benutzerhandbuch
 
-## Öffentliches Dashboard
+## Übersicht der Ansichten
 
-`https://schuljahreswechsel.hornse.de` zeigt ohne Anmeldung den aktuellen
-Stand: welcher Schritt gerade dran ist, Gesamtfortschritt, Fortschritt je
-Phase, sowie überfällige und in den nächsten 14 Tagen anstehende Schritte
-(sofern jemand ein Datum eingetragen hat). Das ist bewusst für alle
-einsehbar - Kollegium, Schulleitung, auch ohne Login. Wer zuständig ist
-("Verantwortlich") und eingetragene Kommentare sind in dieser öffentlichen
-Ansicht NICHT zu sehen, das gibt es nur nach Anmeldung.
+Die App hat drei Tabs, die für alle Besucher sichtbar sind:
+
+- **Dashboard** – öffentliche Statusübersicht ohne Anmeldung
+- **Zeitstrahl** – Gantt- und Timeline-Ansicht, öffentlich (ohne sensible Felder)
+- **Checkliste** – nur nach Anmeldung, mit allen Details und Bearbeitungsmöglichkeiten
+
+---
+
+## Dashboard (öffentlich)
+
+Zeigt ohne Anmeldung:
+- Welcher Schritt gerade dran ist
+- Überfällige Schritte (Datum in der Vergangenheit, noch nicht erledigt)
+- Schritte, die in den nächsten 14 Tagen fällig sind
+- Fortschritt je Phase als Balken
+
+Bewusst nicht sichtbar ohne Anmeldung: wer zuständig ist (Verantwortlich)
+und eingetragene Kommentare.
+
+---
+
+## Zeitstrahl (öffentlich, erweitert nach Anmeldung)
+
+Zwei Untertabs:
+
+**Gantt:** Horizontale Ansicht mit Datumsachse. Jeder terminierte Schritt
+erscheint als farbiger Punkt am Zieldatum. Heutiger Tag ist hervorgehoben,
+erledigte Schritte sind ausgeblendet, überfällige haben einen roten Rand.
+
+**Timeline:** Chronologische Liste von oben nach unten, mit
+Datums-Trennlinien und Phasen-Farbbalken. Praktisch für den laufenden
+Betrieb – was kommt als nächstes?
+
+In beiden Ansichten erscheinen Schritte ohne Datum am Ende als einfache
+Liste. Nach Anmeldung wird zusätzlich der Verantwortliche angezeigt.
+
+---
 
 ## Anmeldung
 
-Über den Button "Anmelden" oben rechts, mit den gewohnten
-WebUntis-Zugangsdaten. Wichtig: anders als man vielleicht erwartet, reicht
-ein korrektes WebUntis-Passwort allein nicht aus. Die Anmeldung
-funktioniert nur für Personen, die zusätzlich von einem Admin in "Zugriff"
-freigegeben wurden (gedacht fürs Untis/WebUntis-Team, nicht fürs ganze
-Kollegium). Schüler-Logins werden unabhängig davon immer abgelehnt, auch
-wenn Benutzername und Passwort korrekt sind.
+Über den Button „Anmelden" oben rechts, mit den gewohnten
+WebUntis-Zugangsdaten. Ein korrektes Passwort allein reicht nicht – die
+Person muss zusätzlich von einem Admin freigegeben worden sein (siehe
+„Zugriff verwalten" unten). Schüler- und Erziehungsberechtigten-Logins
+werden immer abgewiesen.
 
-## Checkliste
+---
 
-Nach der Anmeldung über den Tab "Checkliste" erreichbar. Jeder Schritt
-lässt sich anklicken, um Details aufzuklappen:
+## Checkliste (nach Anmeldung)
 
-- **Häkchen** setzt den Schritt auf "erledigt" und merkt sich automatisch,
-  wer ihn wann erledigt hat.
-- **Verantwortlich** und **Datum** können frei eingetragen werden, z. B.
-  um vorab zu planen, wer einen Schritt bis wann übernimmt.
-- Alle Änderungen sind sofort für das ganze freigegebene Team sichtbar -
-  es gibt keinen "Speichern"-Knopf, jedes Feld wird beim Verlassen
-  übernommen.
+Über den Tab „Checkliste" erreichbar. Jeden Schritt anklicken um Details
+aufzuklappen:
 
-## Admin-Aufgaben
+**Häkchen** – setzt den Schritt auf erledigt (erscheint durchgestrichen,
+Fortschrittsbalken aktualisiert sich).
 
-Der Admin-Bereich erscheint nur für Personen mit der Rolle "admin" am
-Ende der Seite (nach Anmeldung).
+**Verantwortlich** – Freitext, wer diesen Schritt übernimmt.
 
-### Neues Schuljahr anlegen
+**Datum** – geplantes Zieldatum. Schritte mit gleichem Datum werden
+automatisch als parallel erkannt und mit einem gestrichelten Rahmen
+und „⇉ parallel"-Badge zusammengefasst.
 
-Trägt man im Feld "Neues Schuljahr" z. B. `2027/2028` ein und klickt auf
-"Anlegen", passiert Folgendes:
+**Parallel möglich** – manuelles Flag für dieses Schuljahr, unabhängig
+vom Datum. Nützlich wenn Schritte grundsätzlich parallel laufen können,
+aber kein konkretes Datum eingetragen ist.
 
-1. Alle aktiven Schritt-Vorlagen werden frisch (und unerledigt) für das
-   neue Schuljahr angelegt.
-2. Das neue Schuljahr wird automatisch aktiv - alle anderen werden
-   deaktiviert.
-3. Frühere Schuljahre verschwinden nicht, sie sind nur nicht mehr die
-   Standardansicht (eine Oberfläche, um in ihnen zu blättern, ist für
-   eine spätere Version geplant).
+**Weiterführende Infos** – erscheint wenn ein Admin Notizen hinterlegt
+hat (Markdown-formatiert). Nur für angemeldete Personen sichtbar.
+
+Alle Änderungen werden beim Verlassen des Felds automatisch gespeichert
+(kein Speichern-Button).
+
+### Schuljahr-Auswahl
+
+Oben links in der Checkliste erscheint ein Auswahlfeld sobald mehr als
+ein Schuljahr existiert. Vergangene Schuljahre öffnen sich in einer
+read-only Archiv-Ansicht – Häkchen und Felder sind gesperrt.
+
+---
+
+## Admin-Bereich
+
+Erscheint nach Anmeldung mit der Rolle „admin" am Ende der Seite.
+
+### Schuljahre
+
+**Neues Schuljahr anlegen:** Label eingeben (z. B. „2027/2028") und eine
+Basis wählen:
+- „Aktuelle Vorlage" – kopiert alle aktiven Schritte und Phasen
+- Ein gespeicherter Snapshot – legt eine eigene Kopie der Phasen und
+  Schritte aus dem Snapshot an (nützlich für andere Prozesse)
+
+Das neue Schuljahr wird automatisch aktiv, das alte bleibt als Archiv.
+
+**Schuljahr aktivieren:** Über den Button in der Tabelle kann ein früheres
+Schuljahr wieder aktiv gesetzt werden.
+
+### Vorlagen-Snapshots
+
+**Jetzt einfrieren:** Speichert den aktuellen Stand aller Phasen und
+aktiven Schritte als benannten Snapshot. Der Snapshot ist danach
+eingefroren – spätere Änderungen an der aktiven Vorlage verändern ihn
+nicht.
+
+Snapshots eignen sich um verschiedene Prozesse parallel zu verwalten –
+z. B. „WebUntis-Wechsel", „Abitur-Organisation", „Geräteausgabe" jeweils
+als eigene Vorlage.
+
+Über „löschen" wird ein Snapshot vollständig entfernt (mit
+Bestätigungsdialog).
 
 ### Zugriff verwalten
 
-Nur Personen in dieser Liste können sich überhaupt anmelden. Über das
-Formular "WebUntis-Kürzel / Anzeigename / Rolle" lässt sich jemand VOR
-ihrem ersten Login freischalten - das Kürzel muss exakt dem
-WebUntis-Benutzernamen entsprechen. Über das Auswahlfeld in der jeweiligen
-Zeile lässt sich die Rolle jederzeit ändern (mitglied ↔ admin) oder der
-Zugriff faktisch entziehen, indem die Rolle auf "mitglied" gesetzt wird
-(ein vollständiges Entfernen aus der Liste gibt es in der Oberfläche noch
-nicht - dafür wäre direkter Datenbankzugriff nötig).
+Nur Personen in dieser Liste können sich anmelden. Vor dem ersten Login
+einer Person hier „Freigeben" klicken – das WebUntis-Kürzel muss exakt
+dem Benutzernamen in WebUntis entsprechen.
 
-**Wichtig:** Es kann nicht "der letzte Admin" über die Oberfläche entfernt
-werden, dieser Schutz ist aktuell nicht eingebaut - bitte beim
-Zurückstufen kurz nachdenken, sonst muss wieder ein Admin per SQL
-eingerichtet werden (siehe `docs/INSTALL.md`, Abschnitt 5).
+- **Rolle ändern:** Über das Auswahlfeld in der Zeile (mitglied ↔ admin).
+  Wirkt sofort beim nächsten Seitenaufruf, ohne erneuten Login.
+- **Entfernen:** „entfernen"-Button mit Bestätigungsdialog. Der eigene
+  Account und der letzte verbliebene Admin können nicht entfernt werden.
 
-### Checkliste verwalten (Schritte ergänzen, bearbeiten, umsortieren)
+### Checkliste verwalten
 
-Hier wird die wiederkehrende Vorlage gepflegt, nicht nur das aktuelle
-Schuljahr - Änderungen wirken sich aber sofort auch auf das gerade
-laufende Schuljahr aus.
+Hier wird die wiederkehrende Vorlage gepflegt. Änderungen wirken sich
+sofort auf das laufende Schuljahr aus.
 
-- **Neuer Schritt:** Phase auswählen, Titel eintragen, "Hinzufügen". Der
-  neue Schritt erscheint sofort (unerledigt) im aktuell laufenden
-  Schuljahr und wird Teil der Vorlage für alle künftigen Schuljahre.
-- **Titel ändern:** direkt im Textfeld der Zeile bearbeiten, beim
-  Verlassen des Feldes wird gespeichert.
-- **Phase ändern:** über das Auswahlfeld in der Zeile - der Schritt
-  landet automatisch ans Ende der neuen Phase.
-- **Umsortieren innerhalb einer Phase:** an dem Griff-Symbol (⠿) per
-  Drag-and-Drop an die gewünschte Stelle ziehen. Das funktioniert
-  absichtlich nur innerhalb derselben Phase, nicht phasenübergreifend -
-  für einen Phasenwechsel das Auswahlfeld benutzen.
-- **Deaktivieren:** entfernt einen Schritt aus allen KÜNFTIGEN
-  Schuljahren, lässt ihn aber im aktuell laufenden (und in vergangenen)
-  Schuljahren stehen, damit keine bereits eingetragene Arbeit verloren
-  geht. Über "reaktivieren" rückgängig zu machen.
+**Phasen:**
+- Oben am ⠿-Griff per Drag-and-Drop umsortieren – die Nummerierung
+  (1., 2., 3. …) passt sich automatisch an
+- Farbpicker zum Ändern der Phasenfarbe
+- Phasenname direkt im Textfeld bearbeiten
+- „Phase anlegen" für neue Phasen (Name + Farbe)
 
-## Was diese App (noch) nicht kann
+**Schritte je Phase:**
+- Am ⠿-Griff innerhalb der Phase umsortieren
+- Titel direkt im Textfeld bearbeiten
+- Phasenwechsel über das Auswahlfeld (Schritt landet ans Ende der neuen Phase)
+- „⇉ Default" – Parallel-Flag als Vorlage-Default für neue Schuljahre
+- „deaktivieren" – entfernt den Schritt aus künftigen Schuljahren,
+  lässt ihn im laufenden Schuljahr bestehen
+- „+ Neuer Schritt" am Ende jedes Phasen-Blocks
 
-- Keine E-Mail-Erinnerungen.
-- Keine Ansicht vergangener Schuljahre in der Oberfläche (die Daten sind
-  aber in der Datenbank erhalten).
-- Niemand kann vollständig aus der Zugriffsliste entfernt werden (nur die
-  Rolle ändern) - dafür wäre direkter Datenbankzugriff nötig.
+**Weiterführende Infos (ausgeklappt über ▸):**
+Formatierungsbuttons für Fett, Kursiv, Aufzählung, nummerierte Liste und
+Links. Direkte Markdown-Eingabe ist ebenfalls möglich. Live-Vorschau
+erscheint direkt unter dem Textfeld. Unterstützte Syntax:
+
+| Eingabe | Ergebnis |
+|---|---|
+| `**Text**` | **Fett** |
+| `*Text*` | *Kursiv* |
+| `- Punkt` | Aufzählung |
+| `1. Punkt` | Nummerierte Liste |
+| `[Linktext](https://...)` | Link |
+
+---
+
+## Was die App (noch) nicht kann
+
+- Kein `start_datum` pro Schritt – Parallel-Erkennung basiert auf gleichem Zieldatum
+- Keine E-Mail-Erinnerungen
+- Kein vollständiges Entfernen einer Person über die Oberfläche wenn sie
+  der letzte Admin ist (dann direkter DB-Zugriff nötig, siehe INSTALL.md)
+- Keine Ansicht des Zeitstrahls für vergangene Schuljahre (nur Checkliste)
