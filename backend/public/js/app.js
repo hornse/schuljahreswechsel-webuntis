@@ -345,6 +345,8 @@ function render() {
     $app.appendChild(renderLogin());
   } else if (STATE.ansicht === 'checkliste' && STATE.user) {
     $app.appendChild(renderChecklist());
+  } else if (STATE.ansicht === 'zeitstrahl') {
+    $app.appendChild(renderZeitstrahl());
   } else {
     $app.appendChild(renderDashboard());
   }
@@ -365,13 +367,17 @@ function renderKopfleiste() {
     tabsHtml = `
       <button class="tab ${STATE.ansicht === 'dashboard' ? 'aktiv' : ''}" data-ansicht="dashboard">Dashboard</button>
       <button class="tab ${STATE.ansicht === 'checkliste' ? 'aktiv' : ''}" data-ansicht="checkliste">Checkliste</button>
+      <button class="tab ${STATE.ansicht === 'zeitstrahl' ? 'aktiv' : ''}" data-ansicht="zeitstrahl">Zeitstrahl</button>
     `;
     rechtsHtml = `<button class="btn btn-sekundaer" id="logout-btn">Abmelden</button>`;
   } else if (STATE.ansicht === 'login') {
     tabsHtml = `<button class="tab" data-ansicht="dashboard">Dashboard</button>`;
     rechtsHtml = `<button class="btn btn-sekundaer" id="abbrechen-btn">Abbrechen</button>`;
   } else {
-    tabsHtml = `<button class="tab aktiv" data-ansicht="dashboard">Dashboard</button>`;
+    tabsHtml = `
+      <button class="tab ${STATE.ansicht === 'dashboard' ? 'aktiv' : ''}" data-ansicht="dashboard">Dashboard</button>
+      <button class="tab ${STATE.ansicht === 'zeitstrahl' ? 'aktiv' : ''}" data-ansicht="zeitstrahl">Zeitstrahl</button>
+    `;
     rechtsHtml = `<button class="btn btn-sekundaer" id="anmelden-btn">Anmelden</button>`;
   }
 
@@ -770,6 +776,195 @@ function renderDashListe(titel, liste, istUeberfaellig, parallelDaten = new Set(
   block.innerHTML = `<p class="dash-label">${titel}</p><ul class="dash-liste">${items}</ul>`;
   return block;
 }
+// ============================================================================
+// Zeitstrahl-Ansicht (Gantt + Timeline)
+// ============================================================================
+
+function renderZeitstrahl() {
+  const eingeloggt = !!STATE.user;
+  const liste = eingeloggt ? STATE.schritte : (STATE.publicDashboard?.schritte ?? []);
+
+  const container = document.createElement('div');
+
+  if (liste.length === 0) {
+    const p = document.createElement('p');
+    p.textContent = 'Keine Daten vorhanden.';
+    container.appendChild(p);
+    return container;
+  }
+
+  let aktiverUntertab = 'gantt';
+
+  function renderUntertabs() {
+    container.innerHTML = '';
+    const tabs = document.createElement('div');
+    tabs.className = 'zeitstrahl-tabs kein-druck';
+    tabs.innerHTML = `
+      <button class="zt-tab ${aktiverUntertab === 'gantt' ? 'aktiv' : ''}" data-zt="gantt">Gantt</button>
+      <button class="zt-tab ${aktiverUntertab === 'timeline' ? 'aktiv' : ''}" data-zt="timeline">Timeline</button>
+      <button class="btn-sekundaer btn kein-druck" onclick="window.print()" style="margin-left:auto;width:auto;">🖨 Drucken</button>
+    `;
+    tabs.querySelectorAll('[data-zt]').forEach((btn) => {
+      btn.addEventListener('click', () => { aktiverUntertab = btn.dataset.zt; renderUntertabs(); });
+    });
+    container.appendChild(tabs);
+    container.appendChild(aktiverUntertab === 'gantt' ? renderGantt(liste, eingeloggt) : renderTimeline(liste, eingeloggt));
+  }
+
+  renderUntertabs();
+  return container;
+}
+
+function renderGantt(liste, eingeloggt) {
+  const mitDatum  = liste.filter((s) => s.geplantes_datum);
+  const ohneDatum = liste.filter((s) => !s.geplantes_datum);
+  const wrapper   = document.createElement('div');
+
+  if (mitDatum.length === 0) {
+    const p = document.createElement('p');
+    p.style.cssText = 'color:var(--muted);font-size:13px;';
+    p.textContent = 'Noch keine Datumsangaben eingetragen – bitte in der Checkliste Daten setzen.';
+    wrapper.appendChild(p);
+    if (ohneDatum.length) wrapper.appendChild(renderOhneDatumListe(ohneDatum));
+    return wrapper;
+  }
+
+  const daten    = mitDatum.map((s) => s.geplantes_datum).sort();
+  const minDatum = new Date(daten[0]);
+  const maxDatum = new Date(daten[daten.length - 1]);
+  const spanTage = Math.max(7, Math.ceil((maxDatum - minDatum) / 86400000) + 2);
+  const heute    = heuteISO();
+
+  const phasenReihenfolge = [];
+  const gesehene = new Set();
+  for (const s of liste) {
+    if (!gesehene.has(s.phase)) { phasenReihenfolge.push(s.phase); gesehene.add(s.phase); }
+  }
+
+  const gantt = document.createElement('div');
+  gantt.className = 'gantt-wrap';
+
+  // Kopfzeile Datumsachse
+  const kopfzeile = document.createElement('div');
+  kopfzeile.className = 'gantt-kopf';
+  let kopfHtml = '<div class="gantt-label-zelle"></div>';
+  for (let i = 0; i < spanTage; i++) {
+    const d = new Date(minDatum); d.setDate(d.getDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    const label = (i === 0 || d.getDate() === 1) ? `${d.getDate()}.${d.getMonth()+1}.`
+      : d.getDate() % 5 === 0 ? `${d.getDate()}.` : '';
+    kopfHtml += `<div class="gantt-tag ${iso === heute ? 'gantt-heute' : ''}" title="${iso}">${label}</div>`;
+  }
+  kopfzeile.innerHTML = kopfHtml;
+  gantt.appendChild(kopfzeile);
+
+  let letztePhase = null;
+  for (const schritt of liste) {
+    if (schritt.phase !== letztePhase) {
+      letztePhase = schritt.phase;
+      const nr = phasenReihenfolge.indexOf(schritt.phase) + 1;
+      const nameOhneNr = schritt.phase.replace(/^\d+\.\s*/, '');
+      const pZeile = document.createElement('div');
+      pZeile.className = 'gantt-phase-zeile';
+      let rasterHtml = '';
+      for (let i = 0; i < spanTage; i++) {
+        const d = new Date(minDatum); d.setDate(d.getDate() + i);
+        rasterHtml += `<div class="gantt-zelle${d.toISOString().slice(0,10) === heute ? ' gantt-heute-spalte' : ''}"></div>`;
+      }
+      pZeile.innerHTML = `
+        <div class="gantt-label-zelle gantt-phase-label" style="color:${schritt.phase_farbe};">${nr}. ${nameOhneNr}</div>
+        <div class="gantt-raster" style="grid-template-columns:repeat(${spanTage},1fr);">${rasterHtml}</div>
+      `;
+      gantt.appendChild(pZeile);
+    }
+
+    if (!schritt.geplantes_datum) continue;
+    const offset = Math.round((new Date(schritt.geplantes_datum) - minDatum) / 86400000);
+    const zeile  = document.createElement('div');
+    zeile.className = 'gantt-zeile';
+    const meta = eingeloggt && schritt.verantwortlich_anzeigename ? ` · ${schritt.verantwortlich_anzeigename}` : '';
+    let rasterHtml = '';
+    for (let i = 0; i < spanTage; i++) {
+      const d = new Date(minDatum); d.setDate(d.getDate() + i);
+      const istHeute2 = d.toISOString().slice(0, 10) === heute;
+      rasterHtml += `<div class="gantt-zelle${istHeute2 ? ' gantt-heute-spalte' : ''}">
+        ${i === offset ? `<div class="gantt-balken ${schritt.erledigt ? 'gantt-erledigt' : schritt.geplantes_datum < heute ? 'gantt-ueberfaellig' : ''}"
+          style="background:${schritt.phase_farbe};" title="${schritt.titel}${meta}"></div>` : ''}
+      </div>`;
+    }
+    zeile.innerHTML = `
+      <div class="gantt-label-zelle gantt-schritt-label ${schritt.erledigt ? 'erledigt' : ''}">${schritt.erledigt ? '✓ ' : ''}${schritt.titel}${meta}</div>
+      <div class="gantt-raster" style="grid-template-columns:repeat(${spanTage},1fr);">${rasterHtml}</div>
+    `;
+    gantt.appendChild(zeile);
+  }
+
+  wrapper.appendChild(gantt);
+  if (ohneDatum.length) wrapper.appendChild(renderOhneDatumListe(ohneDatum));
+  return wrapper;
+}
+
+function renderTimeline(liste, eingeloggt) {
+  const mitDatum  = [...liste.filter((s) => s.geplantes_datum)].sort((a, b) => a.geplantes_datum.localeCompare(b.geplantes_datum));
+  const ohneDatum = liste.filter((s) => !s.geplantes_datum);
+  const heute     = heuteISO();
+  const wrapper   = document.createElement('div');
+  const tl        = document.createElement('div');
+  tl.className    = 'timeline';
+
+  let letztesDatum = null;
+  for (const schritt of mitDatum) {
+    if (schritt.geplantes_datum !== letztesDatum) {
+      letztesDatum = schritt.geplantes_datum;
+      const istHeute       = schritt.geplantes_datum === heute;
+      const istVergangenheit = schritt.geplantes_datum < heute;
+      const trenn = document.createElement('div');
+      trenn.className = 'tl-datum-zeile';
+      trenn.innerHTML = `
+        <div class="tl-datum-linie"></div>
+        <div class="tl-datum-label ${istHeute ? 'tl-heute' : istVergangenheit ? 'tl-vergangenheit' : ''}">
+          ${istHeute ? '📍 Heute · ' : ''}${formatDatum(schritt.geplantes_datum)}
+        </div>
+        <div class="tl-datum-linie"></div>
+      `;
+      tl.appendChild(trenn);
+    }
+
+    const el = document.createElement('div');
+    el.className = `tl-eintrag ${schritt.erledigt ? 'tl-erledigt' : schritt.geplantes_datum < heute ? 'tl-ueberfaellig' : ''}`;
+    el.style.setProperty('--accent', schritt.phase_farbe);
+
+    const phasenNr = schritt.phase.match(/^\d+\./)?.[0] ?? '';
+    const meta     = eingeloggt && schritt.verantwortlich_anzeigename
+      ? `<span class="tl-meta">${schritt.verantwortlich_anzeigename}</span>` : '';
+    const parallelBadge = schritt.kann_parallel ? `<span class="parallel-badge" style="font-size:9px;">⇉</span>` : '';
+
+    el.innerHTML = `
+      <div class="tl-punkt"></div>
+      <div class="tl-inhalt">
+        <span class="tl-phase" style="color:${schritt.phase_farbe};">${phasenNr}</span>
+        <span class="tl-titel ${schritt.erledigt ? 'erledigt' : ''}">${schritt.titel}</span>
+        ${parallelBadge}${meta}
+      </div>
+    `;
+    tl.appendChild(el);
+  }
+
+  wrapper.appendChild(tl);
+  if (ohneDatum.length) wrapper.appendChild(renderOhneDatumListe(ohneDatum));
+  return wrapper;
+}
+
+function renderOhneDatumListe(liste) {
+  const block = document.createElement('div');
+  block.innerHTML = `
+    <p class="dash-label" style="margin-top:20px;">Ohne Datum (${liste.length})</p>
+    <ul style="font-size:12.5px;color:var(--muted);padding-left:16px;margin:4px 0;">
+      ${liste.map((s) => `<li>${s.titel}</li>`).join('')}
+    </ul>`;
+  return block;
+}
+
 // ============================================================================
 // Admin-Bereich
 // ============================================================================

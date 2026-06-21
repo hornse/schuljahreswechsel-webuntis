@@ -272,3 +272,87 @@ footer{ padding:14px 20px; text-align:center; font-size:12px; color:var(--muted)
   /* Links als Text */
   a::after { content: ' (' attr(href) ')'; font-size: 8pt; color: #666; }
 }
+
+/* ============================================================
+   Zeitstrahl: gemeinsame Untertabs
+   ============================================================ */
+.zeitstrahl-tabs{ display:flex; align-items:center; gap:6px; margin-bottom:14px; }
+.zt-tab{
+  font-size:12px; padding:4px 12px; border:1px solid var(--line); border-radius:5px;
+  background:#fff; cursor:pointer; color:var(--ink);
+}
+.zt-tab.aktiv{ background:var(--accent-default); color:#fff; border-color:var(--accent-default); }
+
+/* ============================================================
+   Gantt
+   ============================================================ */
+.gantt-wrap{ overflow-x:auto; font-size:11.5px; }
+.gantt-kopf,
+.gantt-zeile,
+.gantt-phase-zeile{ display:flex; align-items:center; }
+.gantt-label-zelle{
+  min-width:180px; max-width:180px; padding:3px 6px; font-size:11px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:0;
+}
+.gantt-phase-label{ font-weight:700; font-size:11.5px; padding-top:10px; }
+.gantt-schritt-label{ color:var(--ink); }
+.gantt-schritt-label.erledigt{ color:var(--muted); text-decoration:line-through; }
+.gantt-raster{ display:grid; flex:1; min-width:0; }
+.gantt-tag{
+  font-size:9px; color:var(--muted); text-align:center; padding:2px 0;
+  border-left:1px solid transparent;
+}
+.gantt-tag.gantt-heute{ color:var(--accent-default); font-weight:700; }
+.gantt-zelle{
+  height:22px; border-left:1px solid #eee; position:relative;
+  display:flex; align-items:center;
+}
+.gantt-heute-spalte{ background:rgba(91,111,168,.06); }
+.gantt-heute-spalte .gantt-tag{ border-left-color:var(--accent-default); }
+.gantt-balken{
+  width:12px; height:12px; border-radius:50%;
+  margin:0 auto; flex-shrink:0;
+}
+.gantt-erledigt{ opacity:.4; }
+.gantt-ueberfaellig{ outline:2px solid #c0392b; outline-offset:2px; }
+
+/* ============================================================
+   Timeline
+   ============================================================ */
+.timeline{ position:relative; padding:8px 0; }
+.tl-datum-zeile{
+  display:flex; align-items:center; gap:8px; margin:12px 0 4px;
+}
+.tl-datum-linie{ flex:1; height:1px; background:var(--line); }
+.tl-datum-label{
+  font-size:11px; font-family:'IBM Plex Mono',monospace;
+  color:var(--muted); white-space:nowrap; flex-shrink:0;
+}
+.tl-datum-label.tl-heute{ color:var(--accent-default); font-weight:700; }
+.tl-datum-label.tl-vergangenheit{ color:#c0392b; }
+.tl-eintrag{
+  display:flex; align-items:flex-start; gap:10px;
+  padding:5px 0 5px 6px; border-left:2px solid var(--accent, var(--accent-default));
+  margin-left:10px; margin-bottom:2px;
+}
+.tl-eintrag.tl-erledigt{ opacity:.5; border-left-color:#ccc; }
+.tl-eintrag.tl-ueberfaellig{ border-left-color:#c0392b; }
+.tl-punkt{
+  width:8px; height:8px; border-radius:50%;
+  background:var(--accent, var(--accent-default)); flex-shrink:0; margin-top:3px;
+  margin-left:-14px;
+}
+.tl-eintrag.tl-erledigt .tl-punkt{ background:#ccc; }
+.tl-eintrag.tl-ueberfaellig .tl-punkt{ background:#c0392b; }
+.tl-inhalt{ display:flex; flex-wrap:wrap; align-items:center; gap:4px; flex:1; }
+.tl-phase{ font-size:10px; font-family:'IBM Plex Mono',monospace; flex-shrink:0; }
+.tl-titel{ font-size:13px; }
+.tl-meta{ font-size:11px; color:var(--muted); }
+
+@media print {
+  .zeitstrahl-tabs{ display:none !important; }
+  .gantt-wrap{ overflow:visible; }
+  .gantt-label-zelle{ min-width:140px; max-width:140px; font-size:9px; }
+  .gantt-tag{ font-size:7px; }
+  .tl-eintrag{ page-break-inside:avoid; }
+}
