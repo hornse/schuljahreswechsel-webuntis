@@ -38,7 +38,7 @@ header{
 }
 h1{ font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:700; margin:0; }
 
-main{ flex:1; padding:20px; max-width:760px; margin-left:auto; margin-right:auto; width:100%; box-sizing:border-box; }
+main{ flex:1; padding:20px; max-width:1100px; margin-left:auto; margin-right:auto; width:100%; box-sizing:border-box; }
 
 footer{ padding:14px 20px; text-align:center; font-size:12px; color:var(--muted); }
 
@@ -132,7 +132,34 @@ footer{ padding:14px 20px; text-align:center; font-size:12px; color:var(--muted)
   background:#fff; margin-bottom:6px;
 }
 
-/* --- Phasen-Verwaltung --- */
+/* --- Eigene Farbauswahl --- */
+.farbwahl{ padding:8px; background:#fff; border:1px solid var(--line); border-radius:8px; width:220px; }
+.farbwahl-palette{ display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px; }
+.farbwahl-kaestchen{
+  width:24px; height:24px; border-radius:4px; border:2px solid transparent;
+  cursor:pointer; padding:0; transition:transform .1s;
+}
+.farbwahl-kaestchen:hover{ transform:scale(1.15); }
+.farbwahl-kaestchen.aktiv{ border-color:#fff; outline:2px solid #333; }
+.farbwahl-eigene{ display:flex; align-items:center; gap:6px; }
+.farbwahl-vorschau{ width:28px; height:28px; border-radius:5px; border:1px solid var(--line); flex-shrink:0; }
+.farbwahl-hex{ flex:1; font-size:12px; padding:4px 6px; border:1px solid var(--line); border-radius:5px; font-family:'IBM Plex Mono',monospace; }
+.farb-popup{ position:absolute; top:28px; left:0; z-index:100; box-shadow:0 4px 16px rgba(0,0,0,.15); border-radius:8px; }
+.neue-phase-form{ display:flex; flex-direction:column; gap:6px; }
+
+/* --- Breiteres Layout: zwei Spalten ab 900px --- */
+@media (min-width:900px) {
+  .phasen-liste{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+}
+@media (min-width:1100px) {
+  header{ padding:28px 40px 16px; }
+  main{ padding:24px 40px; }
+}
+
+/* --- Gantt Zoom --- */
+.gantt-zoom{ display:flex; align-items:center; gap:10px; margin-bottom:10px; font-size:12px; color:var(--muted); }
+.gantt-zoom input[type=range]{ flex:1; max-width:200px; accent-color:var(--accent-default); }
+
 .phasen-liste{ display:flex; flex-direction:column; gap:12px; }
 .phasen-block{
   border:1px solid var(--line); border-radius:8px; overflow:hidden; cursor:default;

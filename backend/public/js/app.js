@@ -30,6 +30,9 @@ const STATE = {
   publicDashboard: null,
   ansicht: 'dashboard',
   gewaehlteSchuljahr: null,  // null = aktives Schuljahr, sonst ID eines archivierten
+  offeneSchritte: new Set(), // IDs von Schritten deren Detail-Box offen ist
+  offeneVorlagen: new Set(), // IDs von Vorlagen deren Notiz-Box offen ist
+  ganttZoom: 1,              // Tage pro Spalte: 1=Tag, 2=2Tage, 7=Woche
 };
 
 let dragZustand = null; // { id, phase } - während eines Drag-and-Drop-Vorgangs bei den Vorlagen
@@ -79,6 +82,67 @@ function phasenAnzeigeNameAusListe(phase) {
 // angewendet, die selbst nur eng begrenzte, fest vorgegebene HTML-Tags
 // einfügen. Andernfalls könnte jemand über dieses Feld eigenes HTML/JS
 // einschleusen, das anderen eingeloggten Personen angezeigt würde.
+
+// ============================================================================
+// Eigene Farbauswahl-Komponente
+// ============================================================================
+const VORDEFINIERTE_FARBEN = [
+  '#D98A2B', '#E85D4A', '#C0392B', '#B5577A', '#8E44AD',
+  '#5B6FA8', '#2980B9', '#16A085', '#3D7B6F', '#27AE60',
+  '#2ECC71', '#F39C12', '#7F8C8D', '#3B3B3B', '#1A1A2E',
+];
+
+function renderFarbwahl(aktuelleFarbe, onChange) {
+  const container = document.createElement('div');
+  container.className = 'farbwahl';
+
+  const palette = document.createElement('div');
+  palette.className = 'farbwahl-palette';
+
+  for (const farbe of VORDEFINIERTE_FARBEN) {
+    const kaestchen = document.createElement('button');
+    kaestchen.type = 'button';
+    kaestchen.className = 'farbwahl-kaestchen' + (farbe === aktuelleFarbe ? ' aktiv' : '');
+    kaestchen.style.background = farbe;
+    kaestchen.title = farbe;
+    kaestchen.addEventListener('click', () => {
+      container.querySelectorAll('.farbwahl-kaestchen').forEach((k) => k.classList.remove('aktiv'));
+      kaestchen.classList.add('aktiv');
+      hexInput.value = farbe;
+      vorschau.style.background = farbe;
+      onChange(farbe);
+    });
+    palette.appendChild(kaestchen);
+  }
+  container.appendChild(palette);
+
+  const eigeneZeile = document.createElement('div');
+  eigeneZeile.className = 'farbwahl-eigene';
+
+  const vorschau = document.createElement('div');
+  vorschau.className = 'farbwahl-vorschau';
+  vorschau.style.background = aktuelleFarbe;
+
+  const hexInput = document.createElement('input');
+  hexInput.type = 'text';
+  hexInput.className = 'farbwahl-hex';
+  hexInput.value = aktuelleFarbe;
+  hexInput.maxLength = 7;
+  hexInput.placeholder = '#5B6FA8';
+  hexInput.addEventListener('input', () => {
+    const val = hexInput.value.trim();
+    if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+      vorschau.style.background = val;
+      container.querySelectorAll('.farbwahl-kaestchen').forEach((k) => k.classList.remove('aktiv'));
+      onChange(val);
+    }
+  });
+
+  eigeneZeile.appendChild(vorschau);
+  eigeneZeile.appendChild(hexInput);
+  container.appendChild(eigeneZeile);
+  return container;
+}
 
 function inlineFormatierung(text) {
   return text
@@ -216,6 +280,8 @@ async function doLogout() {
   STATE.vorlagen = [];
   STATE.vorlagenSets = [];
   STATE.ansicht = 'dashboard';
+  STATE.offeneSchritte = new Set();
+  STATE.offeneVorlagen = new Set();
   render();
 }
 
@@ -610,16 +676,28 @@ function renderSchritt(schritt, readonly = false) {
     </div>
   `;
 
-  if (!readonly) {
-    el.querySelector('[data-rolle="checkbox"]').addEventListener('click', (e) => {
-      e.stopPropagation();
-      toggleSchritt(schritt.id, !schritt.erledigt);
-    });
+  el.querySelector('[data-rolle="checkbox"]') && el.querySelector('[data-rolle="checkbox"]').addEventListener('click', (e) => {
+    e.stopPropagation();
+    !readonly && toggleSchritt(schritt.id, !schritt.erledigt);
+  });
+
+  // Zustand aus STATE wiederherstellen
+  const detailEl  = el.querySelector('[data-rolle="detail"]');
+  const chevronEl = el.querySelector('[data-rolle="chevron"]');
+  if (STATE.offeneSchritte.has(schritt.id)) {
+    detailEl.classList.add('offen');
+    chevronEl.classList.add('offen');
   }
 
   el.querySelector('.schritt-zeile').addEventListener('click', () => {
-    el.querySelector('[data-rolle="detail"]').classList.toggle('offen');
-    el.querySelector('[data-rolle="chevron"]').classList.toggle('offen');
+    const istOffen = detailEl.classList.toggle('offen');
+    chevronEl.classList.toggle('offen');
+    // Zustand in STATE persistieren
+    if (istOffen) {
+      STATE.offeneSchritte.add(schritt.id);
+    } else {
+      STATE.offeneSchritte.delete(schritt.id);
+    }
   });
 
   if (!readonly) {
@@ -859,8 +937,26 @@ function renderGantt(liste, eingeloggt) {
   const daten    = mitDatum.flatMap((s) => s.start_datum ? [s.start_datum, s.geplantes_datum] : [s.geplantes_datum]).sort();
   const minDatum = new Date(daten[0]);
   const maxDatum = new Date(daten[daten.length - 1]);
-  const spanTage = Math.max(7, Math.ceil((maxDatum - minDatum) / 86400000) + 2);
   const heute    = heuteISO();
+  const zoom     = STATE.ganttZoom;
+  const spanTage = Math.max(7, Math.ceil((maxDatum - minDatum) / 86400000) + 2);
+  const spanSpalten = Math.ceil(spanTage / zoom);
+
+  // Zoom-Regler
+  const zoomZeile = document.createElement('div');
+  zoomZeile.className = 'gantt-zoom kein-druck';
+  const zoomLabels = { 1: 'Tagesansicht', 2: '2 Tage/Spalte', 3: '3 Tage/Spalte', 7: 'Wochenansicht' };
+  zoomZeile.innerHTML = `
+    <span>Zoom:</span>
+    <input type="range" min="1" max="7" step="1" value="${zoom}" id="gantt-zoom-slider">
+    <span id="gantt-zoom-label">${zoomLabels[zoom] || zoom + ' Tage/Spalte'}</span>
+  `;
+  zoomZeile.querySelector('#gantt-zoom-slider').addEventListener('input', (e) => {
+    STATE.ganttZoom = Number(e.target.value);
+    const neuerGantt = renderGantt(liste, eingeloggt);
+    wrapper.replaceWith(neuerGantt);
+  });
+  wrapper.appendChild(zoomZeile);
 
   const phasenReihenfolge = [];
   const gesehene = new Set();
@@ -871,19 +967,21 @@ function renderGantt(liste, eingeloggt) {
   const gantt = document.createElement('div');
   gantt.className = 'gantt-wrap';
 
-  // Kopfzeile Datumsachse
   const kopfzeile = document.createElement('div');
   kopfzeile.className = 'gantt-kopf';
   let kopfHtml = '<div class="gantt-label-zelle"></div>';
-  for (let i = 0; i < spanTage; i++) {
-    const d = new Date(minDatum); d.setDate(d.getDate() + i);
+  for (let i = 0; i < spanSpalten; i++) {
+    const d = new Date(minDatum); d.setDate(d.getDate() + i * zoom);
     const iso = d.toISOString().slice(0, 10);
-    const label = (i === 0 || d.getDate() === 1) ? `${d.getDate()}.${d.getMonth()+1}.`
-      : d.getDate() % 5 === 0 ? `${d.getDate()}.` : '';
-    kopfHtml += `<div class="gantt-tag ${iso === heute ? 'gantt-heute' : ''}" title="${iso}">${label}</div>`;
+    const endD = new Date(d.getTime() + (zoom - 1) * 86400000);
+    const istHeuteSpalte = iso <= heute && heute <= endD.toISOString().slice(0, 10);
+    const label = `${d.getDate()}.${d.getMonth()+1}.`;
+    kopfHtml += `<div class="gantt-tag ${istHeuteSpalte ? 'gantt-heute' : ''}" title="${iso}">${label}</div>`;
   }
   kopfzeile.innerHTML = kopfHtml;
   gantt.appendChild(kopfzeile);
+
+  const tagZuSpalte = (iso) => Math.floor(Math.round((new Date(iso) - minDatum) / 86400000) / zoom);
 
   let letztePhase = null;
   for (const schritt of liste) {
@@ -894,64 +992,45 @@ function renderGantt(liste, eingeloggt) {
       const pZeile = document.createElement('div');
       pZeile.className = 'gantt-phase-zeile';
       let rasterHtml = '';
-      for (let i = 0; i < spanTage; i++) {
-        const d = new Date(minDatum); d.setDate(d.getDate() + i);
-        rasterHtml += `<div class="gantt-zelle${d.toISOString().slice(0,10) === heute ? ' gantt-heute-spalte' : ''}"></div>`;
+      for (let i = 0; i < spanSpalten; i++) {
+        const d = new Date(minDatum); d.setDate(d.getDate() + i * zoom);
+        const endD = new Date(d.getTime() + (zoom-1)*86400000);
+        const istHeuteSpalte = d.toISOString().slice(0,10) <= heute && heute <= endD.toISOString().slice(0,10);
+        rasterHtml += `<div class="gantt-zelle${istHeuteSpalte ? ' gantt-heute-spalte' : ''}"></div>`;
       }
       pZeile.innerHTML = `
         <div class="gantt-label-zelle gantt-phase-label" style="color:${schritt.phase_farbe};">${nr}. ${nameOhneNr}</div>
-        <div class="gantt-raster" style="grid-template-columns:repeat(${spanTage},1fr);">${rasterHtml}</div>
+        <div class="gantt-raster" style="grid-template-columns:repeat(${spanSpalten},1fr);">${rasterHtml}</div>
       `;
       gantt.appendChild(pZeile);
     }
 
     if (!schritt.geplantes_datum) continue;
-
-    // start_datum → Balken; nur geplantes_datum → Punkt (Kreis)
-    const startOffset = schritt.start_datum
-      ? Math.round((new Date(schritt.start_datum) - minDatum) / 86400000)
-      : null;
-    const endeOffset  = Math.round((new Date(schritt.geplantes_datum) - minDatum) / 86400000);
-    const hatBalken   = startOffset !== null && startOffset < endeOffset;
-
+    const startSpalte = schritt.start_datum ? tagZuSpalte(schritt.start_datum) : tagZuSpalte(schritt.geplantes_datum);
+    const endeSpalte  = tagZuSpalte(schritt.geplantes_datum);
+    const hatBalken   = startSpalte < endeSpalte;
     const zeile  = document.createElement('div');
     zeile.className = 'gantt-zeile';
     const statusKlasse = schritt.erledigt ? 'gantt-erledigt' : schritt.geplantes_datum < heute ? 'gantt-ueberfaellig' : '';
     const meta = eingeloggt && schritt.verantwortlich_anzeigename ? ` · ${schritt.verantwortlich_anzeigename}` : '';
-
     let rasterHtml = '';
-    for (let i = 0; i < spanTage; i++) {
-      const d = new Date(minDatum); d.setDate(d.getDate() + i);
-      const istHeute2 = d.toISOString().slice(0, 10) === heute;
-
+    for (let i = 0; i < spanSpalten; i++) {
+      const d = new Date(minDatum); d.setDate(d.getDate() + i * zoom);
+      const endD = new Date(d.getTime()+(zoom-1)*86400000);
+      const istHeuteSpalte = d.toISOString().slice(0,10) <= heute && heute <= endD.toISOString().slice(0,10);
       let inhalt = '';
       if (hatBalken) {
-        // Balken-Modus: erstes Segment = linke Hälfte mit abgerundeter linker Ecke,
-        // mittlere = Verbindung, letztes = rechte Hälfte mit abgerundeter rechter Ecke
-        if (i === startOffset) {
-          inhalt = `<div class="gantt-balken gantt-balken-start ${statusKlasse}"
-            style="background:${schritt.phase_farbe};" title="${schritt.titel}${meta}"></div>`;
-        } else if (i > startOffset && i < endeOffset) {
-          inhalt = `<div class="gantt-balken gantt-balken-mitte ${statusKlasse}"
-            style="background:${schritt.phase_farbe};"></div>`;
-        } else if (i === endeOffset) {
-          inhalt = `<div class="gantt-balken gantt-balken-ende ${statusKlasse}"
-            style="background:${schritt.phase_farbe};"></div>`;
-        }
+        if (i === startSpalte)      inhalt = `<div class="gantt-balken gantt-balken-start ${statusKlasse}" style="background:${schritt.phase_farbe};" title="${schritt.titel}${meta}"></div>`;
+        else if (i > startSpalte && i < endeSpalte) inhalt = `<div class="gantt-balken gantt-balken-mitte ${statusKlasse}" style="background:${schritt.phase_farbe};"></div>`;
+        else if (i === endeSpalte)  inhalt = `<div class="gantt-balken gantt-balken-ende ${statusKlasse}" style="background:${schritt.phase_farbe};"></div>`;
       } else {
-        // Punkt-Modus (kein start_datum oder start = ende)
-        if (i === endeOffset) {
-          inhalt = `<div class="gantt-balken gantt-punkt ${statusKlasse}"
-            style="background:${schritt.phase_farbe};" title="${schritt.titel}${meta}"></div>`;
-        }
+        if (i === endeSpalte) inhalt = `<div class="gantt-balken gantt-punkt ${statusKlasse}" style="background:${schritt.phase_farbe};" title="${schritt.titel}${meta}"></div>`;
       }
-
-      rasterHtml += `<div class="gantt-zelle${istHeute2 ? ' gantt-heute-spalte' : ''}">${inhalt}</div>`;
+      rasterHtml += `<div class="gantt-zelle${istHeuteSpalte ? ' gantt-heute-spalte' : ''}">${inhalt}</div>`;
     }
-
     zeile.innerHTML = `
-      <div class="gantt-label-zelle gantt-schritt-label ${schritt.erledigt ? 'erledigt' : ''}">${schritt.erledigt ? '✓ ' : ''}${schritt.titel}${meta}</div>
-      <div class="gantt-raster" style="grid-template-columns:repeat(${spanTage},1fr);">${rasterHtml}</div>
+      <div class="gantt-label-zelle gantt-schritt-label ${schritt.erledigt ? 'erledigt' : ''}">${schritt.erledigt ? '\u2713 ' : ''}${schritt.titel}${meta}</div>
+      <div class="gantt-raster" style="grid-template-columns:repeat(${spanSpalten},1fr);">${rasterHtml}</div>
     `;
     gantt.appendChild(zeile);
   }
@@ -1262,20 +1341,33 @@ function renderVorlagenVerwaltung() {
 
   block.appendChild(phasenListe);
 
-  const neuePhaseForm = document.createElement('form');
-  neuePhaseForm.className = 'inline-form';
+  const neuePhaseForm = document.createElement('div');
+  neuePhaseForm.className = 'neue-phase-form';
   neuePhaseForm.style.marginTop = '14px';
-  neuePhaseForm.innerHTML = `
-    <div class="feld" style="flex:1;"><label>Neue Phase</label><input type="text" id="neue-phase-name" placeholder="z. B. 0. Vorbereitungen" required style="width:100%;"></div>
-    <div class="feld"><label>Farbe</label><input type="color" id="neue-phase-farbe" value="#5B6FA8" style="width:50px;height:34px;padding:2px;border:1px solid var(--line);border-radius:6px;"></div>
-    <button class="btn" type="submit" style="width:auto;">Phase anlegen</button>
-  `;
-  neuePhaseForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const name = neuePhaseForm.querySelector('#neue-phase-name').value.trim();
-    const farbe = neuePhaseForm.querySelector('#neue-phase-farbe').value;
-    if (name) neuePhase(name, farbe);
+
+  const neuePhaseNameInput = document.createElement('input');
+  neuePhaseNameInput.type = 'text';
+  neuePhaseNameInput.placeholder = 'z.\u00a0B. 0.\u00a0Vorbereitungen';
+  neuePhaseNameInput.style.cssText = 'flex:1;font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;';
+
+  let neuerPhaseFarbe = '#5B6FA8';
+  const farbwahlNeu = renderFarbwahl(neuerPhaseFarbe, (f) => { neuerPhaseFarbe = f; });
+
+  const btnNeuePhase = document.createElement('button');
+  btnNeuePhase.className = 'btn';
+  btnNeuePhase.style.cssText = 'width:auto;margin-top:8px;';
+  btnNeuePhase.textContent = 'Phase anlegen';
+  btnNeuePhase.addEventListener('click', () => {
+    const name = neuePhaseNameInput.value.trim();
+    if (name) neuePhase(name, neuerPhaseFarbe);
   });
+
+  const reihe = document.createElement('div');
+  reihe.style.cssText = 'display:flex;gap:8px;align-items:center;';
+  reihe.appendChild(neuePhaseNameInput);
+  neuePhaseForm.appendChild(reihe);
+  neuePhaseForm.appendChild(farbwahlNeu);
+  neuePhaseForm.appendChild(btnNeuePhase);
   block.appendChild(neuePhaseForm);
 
   const hinweis = document.createElement('p');
@@ -1299,20 +1391,56 @@ function renderPhasenBlock(phase, vorlagen) {
   kopf.style.setProperty('--phase-farbe', phase.farbe);
   const nameOhneNummer = phase.name.replace(/^\d+\.\s*/, '');
   const nummer = STATE.phasen.findIndex((p) => p.id === phase.id) + 1;
-  kopf.innerHTML = `
-    <span class="zieh-griff phasen-griff" title="Phase verschieben">\u29bf</span>
-    <input type="color" class="phasen-farbe-picker" value="${phase.farbe}" title="Farbe \u00e4ndern">
-    <span class="phasen-nummer" style="color:var(--phase-farbe);font-weight:700;font-size:14px;flex-shrink:0;">${nummer}.</span>
-    <input type="text" class="phasen-name-feld" value="${nameOhneNummer}" placeholder="Phasenname">
-  `;
+  const griff = document.createElement('span');
+  griff.className = 'zieh-griff phasen-griff';
+  griff.title = 'Phase verschieben';
+  griff.textContent = '\u29bf';
 
-  kopf.querySelector('.phasen-farbe-picker').addEventListener('change', (e) => {
-    phaseAktualisieren(phase.id, { farbe: e.target.value });
-  });
-  kopf.querySelector('.phasen-name-feld').addEventListener('change', (e) => {
-    // Nummer nie im Namen speichern - nur den reinen Namen ohne Präfix
+  const nummerSpan = document.createElement('span');
+  nummerSpan.className = 'phasen-nummer';
+  nummerSpan.style.cssText = 'color:var(--phase-farbe);font-weight:700;font-size:14px;flex-shrink:0;';
+  nummerSpan.textContent = nummer + '.';
+
+  const nameFeld = document.createElement('input');
+  nameFeld.type = 'text';
+  nameFeld.className = 'phasen-name-feld';
+  nameFeld.value = nameOhneNummer;
+  nameFeld.placeholder = 'Phasenname';
+  nameFeld.addEventListener('change', (e) => {
     phaseAktualisieren(phase.id, { name: e.target.value.replace(/^\d+\.\s*/, '') });
   });
+
+  // Farbwahl-Popup: ein kleines Kästchen das beim Klick ein Flyout öffnet
+  const farbBtn = document.createElement('button');
+  farbBtn.type = 'button';
+  farbBtn.className = 'phasen-farb-btn';
+  farbBtn.style.cssText = `background:${phase.farbe};width:22px;height:22px;border-radius:4px;border:2px solid rgba(0,0,0,.15);cursor:pointer;flex-shrink:0;`;
+  farbBtn.title = 'Farbe ändern';
+
+  const farbPopup = document.createElement('div');
+  farbPopup.className = 'farb-popup';
+  farbPopup.style.display = 'none';
+  farbPopup.appendChild(renderFarbwahl(phase.farbe, (f) => {
+    farbBtn.style.background = f;
+    kopf.style.setProperty('--phase-farbe', f);
+    phaseAktualisieren(phase.id, { farbe: f });
+  }));
+
+  farbBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    farbPopup.style.display = farbPopup.style.display === 'none' ? 'block' : 'none';
+  });
+  document.addEventListener('click', () => { farbPopup.style.display = 'none'; }, { once: false });
+
+  const farbWrap = document.createElement('div');
+  farbWrap.style.position = 'relative';
+  farbWrap.appendChild(farbBtn);
+  farbWrap.appendChild(farbPopup);
+
+  kopf.appendChild(griff);
+  kopf.appendChild(farbWrap);
+  kopf.appendChild(nummerSpan);
+  kopf.appendChild(nameFeld);
 
   wrapper.addEventListener('dragstart', (e) => {
     if (e.target.closest('.vorlagen-zeile-wrapper')) return;
@@ -1439,9 +1567,23 @@ function renderVorlagenZeile(v) {
     });
   });
 
-  wrapper.querySelector('[data-rolle="vorlagen-chevron"]').addEventListener('click', () => {
-    wrapper.querySelector('[data-rolle="vorlagen-detail"]').classList.toggle('offen');
-    wrapper.querySelector('[data-rolle="vorlagen-chevron"]').classList.toggle('offen');
+  const vorlagenDetailEl  = wrapper.querySelector('[data-rolle="vorlagen-detail"]');
+  const vorlagenChevronEl = wrapper.querySelector('[data-rolle="vorlagen-chevron"]');
+
+  // Zustand aus STATE wiederherstellen
+  if (STATE.offeneVorlagen.has(v.id)) {
+    vorlagenDetailEl.classList.add('offen');
+    vorlagenChevronEl.classList.add('offen');
+  }
+
+  vorlagenChevronEl.addEventListener('click', () => {
+    const istOffen = vorlagenDetailEl.classList.toggle('offen');
+    vorlagenChevronEl.classList.toggle('offen');
+    if (istOffen) {
+      STATE.offeneVorlagen.add(v.id);
+    } else {
+      STATE.offeneVorlagen.delete(v.id);
+    }
   });
 
   wrapper.addEventListener('dragstart', (e) => {
