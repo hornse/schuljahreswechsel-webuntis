@@ -62,10 +62,6 @@ function handleUpdateSchritt(PDO $db, array $config, array $input, array $params
     $user = Guard::requireLogin($db);
     $id = (int) $params['id'];
 
-    // Nur Text-/Datumsfelder generisch behandeln. "erledigt" braucht
-    // Sonderlogik (siehe unten), "schuljahr_id"/"vorlage_id" dürfen über
-    // diesen Endpunkt nie verändert werden - deshalb keine generische
-    // "alles aus $input übernehmen"-Logik, sondern eine Whitelist.
     $textfelder = ['verantwortlich_user', 'verantwortlich_anzeigename', 'start_datum', 'geplantes_datum', 'kommentar'];
     $sets = [];
     $werte = [':id' => $id];
@@ -104,6 +100,50 @@ function handleUpdateSchritt(PDO $db, array $config, array $input, array $params
 
     $sql = 'UPDATE schritt_instanzen SET ' . implode(', ', $sets) . ' WHERE id = :id';
     $db->prepare($sql)->execute($werte);
+
+    // Aktivität aufzeichnen
+    $infoStmt = $db->prepare(
+        'SELECT sv.titel, si.schuljahr_id, si.vorlage_id
+         FROM schritt_instanzen si JOIN schritt_vorlagen sv ON sv.id = si.vorlage_id
+         WHERE si.id = :id'
+    );
+    $infoStmt->execute([':id' => $id]);
+    $info = $infoStmt->fetch();
+
+    if ($info) {
+        $ereignisse = [];
+        if (array_key_exists('erledigt', $input)) {
+            $ereignisse[] = [(bool) $input['erledigt'] ? 'schritt_erledigt' : 'schritt_rueckgaengig', null];
+        }
+        if (array_key_exists('verantwortlich_anzeigename', $input) && $input['verantwortlich_anzeigename']) {
+            $ereignisse[] = ['verantwortlich_gesetzt', $input['verantwortlich_anzeigename']];
+        }
+        if (array_key_exists('geplantes_datum', $input) && $input['geplantes_datum']) {
+            $ereignisse[] = ['datum_gesetzt', $input['geplantes_datum']];
+        }
+        if (array_key_exists('start_datum', $input) && $input['start_datum']) {
+            $ereignisse[] = ['startdatum_gesetzt', $input['start_datum']];
+        }
+        if (array_key_exists('kommentar', $input) && $input['kommentar']) {
+            $ereignisse[] = ['kommentar_gesetzt', null]; // Kommentartext nicht loggen (zu detailliert)
+        }
+
+        $logStmt = $db->prepare(
+            'INSERT INTO aktivitaeten (schuljahr_id, vorlage_id, schritt_titel, ereignis, wert_neu, benutzer, anzeigename)
+             VALUES (:sj, :v, :titel, :ereignis, :wert, :benutzer, :name)'
+        );
+        foreach ($ereignisse as [$ereignis, $wertNeu]) {
+            $logStmt->execute([
+                ':sj'      => $info['schuljahr_id'],
+                ':v'       => $info['vorlage_id'],
+                ':titel'   => $info['titel'],
+                ':ereignis' => $ereignis,
+                ':wert'    => $wertNeu,
+                ':benutzer' => $user['webuntis_user'],
+                ':name'    => $user['anzeigename'],
+            ]);
+        }
+    }
 
     Response::json(['ok' => true]);
 }

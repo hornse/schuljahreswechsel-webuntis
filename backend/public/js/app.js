@@ -573,9 +573,9 @@ function renderChecklist() {
   fortschritt.innerHTML = `
     <div class="progress-track"><div class="progress-fill" style="width:${prozent}%"></div></div>
     <span class="progress-label">${erledigt} / ${gesamt}</span>
-    <button class="btn-sekundaer btn kein-druck" onclick="window.print()" title="Checkliste drucken" style="margin-left:auto;">🖨 Drucken</button>
   `;
   container.appendChild(fortschritt);
+  container.appendChild(renderExportLeiste('checkliste'));
 
   // Überschneidungsbasierte Parallel-Erkennung
   const parallelIds = berechneParallelIds(STATE.schritte);
@@ -666,12 +666,15 @@ function renderSchritt(schritt, readonly = false) {
           <input type="date" data-feld="geplantes_datum" value="${schritt.geplantes_datum ?? ''}" ${readonly ? 'disabled' : ''}>
         </div>
         ${!readonly ? `
+        <div class="feld feld-breit"><label>Kommentar (nur für angemeldete Personen)</label>
+          <textarea data-feld="kommentar" rows="2" placeholder="Kurznotiz zum aktuellen Stand, z. B. verzögert sich...">${schritt.kommentar ?? ''}</textarea>
+        </div>
         <div class="feld"><label>Parallel möglich</label>
           <label class="toggle-wrap">
             <input type="checkbox" data-feld="kann_parallel" ${schritt.kann_parallel ? 'checked' : ''}>
             <span class="toggle-label">für dieses Schuljahr</span>
           </label>
-        </div>` : ''}
+        </div>` : `${schritt.kommentar ? `<div class="feld feld-breit"><label>Kommentar</label><p class="kommentar-text">${schritt.kommentar}</p></div>` : ''}`}
       </div>
     </div>
   `;
@@ -907,11 +910,11 @@ function renderZeitstrahl() {
     tabs.innerHTML = `
       <button class="zt-tab ${aktiverUntertab === 'gantt' ? 'aktiv' : ''}" data-zt="gantt">Gantt</button>
       <button class="zt-tab ${aktiverUntertab === 'timeline' ? 'aktiv' : ''}" data-zt="timeline">Timeline</button>
-      <button class="btn-sekundaer btn kein-druck" onclick="window.print()" style="margin-left:auto;width:auto;">🖨 Drucken</button>
     `;
     tabs.querySelectorAll('[data-zt]').forEach((btn) => {
       btn.addEventListener('click', () => { aktiverUntertab = btn.dataset.zt; renderUntertabs(); });
     });
+    tabs.appendChild(renderExportLeiste('zeitstrahl'));
     container.appendChild(tabs);
     container.appendChild(aktiverUntertab === 'gantt' ? renderGantt(liste, eingeloggt) : renderTimeline(liste, eingeloggt));
   }
@@ -1104,7 +1107,155 @@ function renderOhneDatumListe(liste) {
 }
 
 // ============================================================================
-// Admin-Bereich
+// Export-Funktionen
+// ============================================================================
+
+function renderExportLeiste(typ) {
+  // typ: 'checkliste' | 'zeitstrahl'
+  const leiste = document.createElement('div');
+  leiste.className = 'export-leiste kein-druck';
+
+  if (typ === 'checkliste') {
+    const csvBtn = document.createElement('button');
+    csvBtn.className = 'btn-sekundaer btn';
+    csvBtn.style.width = 'auto';
+    csvBtn.innerHTML = '⬇ CSV';
+    csvBtn.title = 'Checkliste als CSV herunterladen (öffnet in Excel)';
+    csvBtn.addEventListener('click', () => {
+      const param = STATE.gewaehlteSchuljahr ? `?schuljahr_id=${STATE.gewaehlteSchuljahr}` : '';
+      window.location.href = `/api/export/csv${param}`;
+    });
+
+    const pdfBtn = document.createElement('button');
+    pdfBtn.className = 'btn-sekundaer btn';
+    pdfBtn.style.width = 'auto';
+    pdfBtn.innerHTML = '🖨 PDF';
+    pdfBtn.title = 'Checkliste drucken / als PDF speichern';
+    pdfBtn.addEventListener('click', () => window.print());
+
+    leiste.appendChild(csvBtn);
+    leiste.appendChild(pdfBtn);
+  }
+
+  if (typ === 'zeitstrahl') {
+    const svgBtn = document.createElement('button');
+    svgBtn.className = 'btn-sekundaer btn';
+    svgBtn.style.width = 'auto';
+    svgBtn.innerHTML = '⬇ SVG';
+    svgBtn.title = 'Zeitstrahl als SVG-Grafik exportieren';
+    svgBtn.addEventListener('click', () => exportiereGanttAlsSvg());
+
+    const pdfBtn = document.createElement('button');
+    pdfBtn.className = 'btn-sekundaer btn';
+    pdfBtn.style.width = 'auto';
+    pdfBtn.innerHTML = '🖨 Drucken';
+    pdfBtn.addEventListener('click', () => window.print());
+
+    leiste.appendChild(svgBtn);
+    leiste.appendChild(pdfBtn);
+  }
+
+  return leiste;
+}
+
+function exportiereGanttAlsSvg() {
+  const liste = STATE.user ? STATE.schritte : (STATE.publicDashboard?.schritte ?? []);
+  const mitDatum = liste.filter((s) => s.geplantes_datum);
+  if (mitDatum.length === 0) {
+    alert('Keine Daten mit Datumsangaben vorhanden.');
+    return;
+  }
+
+  const daten    = mitDatum.flatMap((s) => s.start_datum ? [s.start_datum, s.geplantes_datum] : [s.geplantes_datum]).sort();
+  const minDatum = new Date(daten[0]);
+  const maxDatum = new Date(daten[daten.length - 1]);
+  const zoom     = STATE.ganttZoom;
+  const spanTage = Math.max(7, Math.ceil((maxDatum - minDatum) / 86400000) + 2);
+  const spanSpalten = Math.ceil(spanTage / zoom);
+
+  const LABELBREITE = 220;
+  const SPALTENBREITE = 28;
+  const ZEILENHOEHE = 24;
+  const KOPFHOEHE = 28;
+
+  // Zeilen zählen
+  const phasen = [];
+  const gesehene = new Set();
+  for (const s of liste) {
+    if (!gesehene.has(s.phase)) { phasen.push(s.phase); gesehene.add(s.phase); }
+  }
+  const gesamtZeilen = phasen.length + liste.length;
+  const breite  = LABELBREITE + spanSpalten * SPALTENBREITE + 20;
+  const hoehe   = KOPFHOEHE + gesamtZeilen * ZEILENHOEHE + 20;
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${breite}" height="${hoehe}" font-family="Arial, sans-serif" font-size="11">`;
+  svg += `<rect width="${breite}" height="${hoehe}" fill="#F5F2ED"/>`;
+
+  // Datumsachse
+  for (let i = 0; i < spanSpalten; i++) {
+    const d = new Date(minDatum); d.setDate(d.getDate() + i * zoom);
+    const x = LABELBREITE + i * SPALTENBREITE;
+    const label = `${d.getDate()}.${d.getMonth()+1}.`;
+    svg += `<line x1="${x}" y1="0" x2="${x}" y2="${hoehe}" stroke="#ddd" stroke-width="0.5"/>`;
+    svg += `<text x="${x+2}" y="16" fill="#888" font-size="9">${label}</text>`;
+  }
+
+  const tagZuSpalte = (iso) => Math.floor(Math.round((new Date(iso) - minDatum) / 86400000) / zoom);
+  const heute = heuteISO();
+
+  let zeilenY = KOPFHOEHE;
+  let letztePhase = null;
+  let phaseNr = 0;
+
+  for (const schritt of liste) {
+    if (schritt.phase !== letztePhase) {
+      letztePhase = schritt.phase;
+      phaseNr++;
+      const nameOhneNr = schritt.phase.replace(/^\d+\.\s*/, '');
+      svg += `<rect x="0" y="${zeilenY}" width="${breite}" height="${ZEILENHOEHE}" fill="${schritt.phase_farbe}22"/>`;
+      svg += `<text x="8" y="${zeilenY + 16}" fill="${schritt.phase_farbe}" font-weight="bold">${phaseNr}. ${nameOhneNr}</text>`;
+      zeilenY += ZEILENHOEHE;
+    }
+
+    svg += `<rect x="0" y="${zeilenY}" width="${breite}" height="${ZEILENHOEHE}" fill="${zeilenY % (ZEILENHOEHE * 2) === 0 ? '#fff' : '#F9F8F5'}"/>`;
+
+    const titelText = schritt.titel.length > 28 ? schritt.titel.slice(0, 27) + '…' : schritt.titel;
+    const titelFarbe = schritt.erledigt ? '#aaa' : '#333';
+    const titelDeko  = schritt.erledigt ? 'line-through' : 'none';
+    svg += `<text x="10" y="${zeilenY + 16}" fill="${titelFarbe}" text-decoration="${titelDeko}">${titelText}</text>`;
+
+    if (schritt.geplantes_datum) {
+      const startSpalte = schritt.start_datum ? tagZuSpalte(schritt.start_datum) : tagZuSpalte(schritt.geplantes_datum);
+      const endeSpalte  = tagZuSpalte(schritt.geplantes_datum);
+      const x1 = LABELBREITE + startSpalte * SPALTENBREITE + 2;
+      const x2 = LABELBREITE + endeSpalte * SPALTENBREITE + SPALTENBREITE - 2;
+      const y  = zeilenY + 7;
+      const h  = 10;
+      const farbe = schritt.erledigt ? '#ccc' : (schritt.geplantes_datum < heute ? '#c0392b' : schritt.phase_farbe);
+
+      if (startSpalte < endeSpalte) {
+        svg += `<rect x="${x1}" y="${y}" width="${x2-x1}" height="${h}" rx="4" fill="${farbe}" opacity="0.85"/>`;
+      } else {
+        svg += `<circle cx="${x1 + SPALTENBREITE/2 - 2}" cy="${y + h/2}" r="5" fill="${farbe}"/>`;
+      }
+    }
+
+    zeilenY += ZEILENHOEHE;
+  }
+
+  svg += '</svg>';
+
+  const blob = new Blob([svg], { type: 'image/svg+xml' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'schuljahreswechsel_zeitstrahl.svg';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ============================================================================
+// Aktivitätsprotokoll
 // ============================================================================
 
 function renderAdminBereich() {
@@ -1115,8 +1266,57 @@ function renderAdminBereich() {
   container.appendChild(renderSchuljahreBlock());
   container.appendChild(renderZugriffBlock());
   container.appendChild(renderVorlagenVerwaltung());
+  container.appendChild(renderAktivitaetsprotokoll());
 
   return container;
+}
+
+async function ladeAktivitaeten() {
+  const param = STATE.gewaehlteSchuljahr ? `?schuljahr_id=${STATE.gewaehlteSchuljahr}` : '';
+  try { return await api(`/api/aktivitaeten${param}`); } catch { return []; }
+}
+
+function renderAktivitaetsprotokoll() {
+  const block = document.createElement('div');
+  block.innerHTML = `<h3 style="font-size:13px;color:var(--muted);margin-top:24px;">Aktivit\u00e4tsprotokoll</h3>
+    <div id="aktivitaeten-liste" style="font-size:12px;">L\u00e4dt\u2026</div>`;
+
+  const exportBtn = document.createElement('button');
+  exportBtn.className = 'btn-sekundaer btn kein-druck';
+  exportBtn.style.cssText = 'width:auto;margin-top:8px;font-size:11px;';
+  exportBtn.textContent = '\u2b07 Als CSV exportieren';
+  exportBtn.addEventListener('click', () => {
+    const param = STATE.gewaehlteSchuljahr ? `?schuljahr_id=${STATE.gewaehlteSchuljahr}` : '';
+    window.location.href = `/api/export/aktivitaeten${param}`;
+  });
+  block.appendChild(exportBtn);
+
+  const ereignisTexte = {
+    schritt_erledigt: '\u2713 erledigt', schritt_rueckgaengig: '\u21a9 r\u00fckg\u00e4ngig',
+    verantwortlich_gesetzt: '\ud83d\udc64 Verantwortlich', datum_gesetzt: '\ud83d\udcc5 Zieldatum',
+    startdatum_gesetzt: '\ud83d\udcc5 Startdatum', kommentar_gesetzt: '\ud83d\udcac Kommentar',
+  };
+
+  ladeAktivitaeten().then((eintraege) => {
+    const liste = block.querySelector('#aktivitaeten-liste');
+    if (eintraege.length === 0) { liste.textContent = 'Noch keine Aktivit\u00e4ten aufgezeichnet.'; return; }
+    const tabelle = document.createElement('table');
+    tabelle.className = 'admin-tabelle';
+    tabelle.innerHTML = `<thead><tr><th>Wann</th><th>Wer</th><th>Schritt</th><th>Aktion</th></tr></thead>`;
+    const tbody = document.createElement('tbody');
+    for (const e of eintraege) {
+      const tr = document.createElement('tr');
+      const wann = new Date(e.zeitstempel).toLocaleString('de-DE', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+      const aktion = (ereignisTexte[e.ereignis] ?? e.ereignis) + (e.wert_neu ? ': ' + e.wert_neu : '');
+      tr.innerHTML = `<td>${wann}</td><td>${e.anzeigename}</td><td>${e.schritt_titel}</td><td>${aktion}</td>`;
+      tbody.appendChild(tr);
+    }
+    tabelle.appendChild(tbody);
+    liste.innerHTML = '';
+    liste.appendChild(tabelle);
+  });
+
+  return block;
 }
 
 function renderSchuljahreBlock() {

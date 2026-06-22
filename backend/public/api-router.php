@@ -40,6 +40,7 @@ require __DIR__ . '/../api/rollen.php';
 require __DIR__ . '/../api/phasen.php';
 require __DIR__ . '/../api/vorlagen.php';
 require __DIR__ . '/../api/vorlagen-sets.php';
+require __DIR__ . '/../api/export.php';
 
 $route = trim((string) ($_GET['route'] ?? ''), '/');
 $method = $_SERVER['REQUEST_METHOD'];
@@ -84,6 +85,10 @@ $routes = [
     ['POST',  '#^api/vorlagen-sets$#',                     'handleCreateVorlagenSet'],
     ['GET',   '#^api/vorlagen-sets/(?P<id>\d+)$#',         'handleGetVorlagenSet'],
     ['DELETE','#^api/vorlagen-sets/(?P<id>\d+)$#',         'handleDeleteVorlagenSet'],
+
+    ['GET',   '#^api/export/csv$#',                        'handleExportCsv'],
+    ['GET',   '#^api/export/aktivitaeten$#',               'handleExportAktivitaeten'],
+    ['GET',   '#^api/aktivitaeten$#',                      'handleListAktivitaeten'],
 ];
 
 foreach ($routes as [$routeMethod, $pattern, $handler]) {

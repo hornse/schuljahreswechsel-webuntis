@@ -96,6 +96,9 @@ footer{ padding:14px 20px; text-align:center; font-size:12px; color:var(--muted)
 .feld{ display:flex; flex-direction:column; gap:3px; }
 .feld label{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
 .feld input{ font-size:13px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--paper); width:150px; }
+.feld textarea{ font-size:13px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--paper); width:100%; font-family:inherit; resize:vertical; }
+.feld-breit{ width:100%; }
+.kommentar-text{ font-size:13px; color:var(--ink); margin:0; font-style:italic; }
 
 /* --- Admin --- */
 .admin-bereich{ margin-top:32px; border-top:1px dashed var(--line); padding-top:18px; }
@@ -216,7 +219,11 @@ footer{ padding:14px 20px; text-align:center; font-size:12px; color:var(--muted)
 .schritt.readonly .checkbox{ cursor:default; background:none !important; border-color:#ccc !important; }
 .schritt.readonly .checkbox.checked{ background:#ccc !important; }
 
-/* --- Parallel-Gruppe in der Checkliste --- */
+.export-leiste{ display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
+.export-leiste .btn{ font-size:12px; padding:4px 10px; }
+
+/* --- Aktivitätsprotokoll --- */
+.admin-tabelle td{ font-size:12px; }
 .parallel-gruppe{
   border:2px dashed var(--line); border-radius:10px;
   padding:6px 6px 6px; margin-bottom:8px; background:#fafaf8;
@@ -399,4 +406,58 @@ footer{ padding:14px 20px; text-align:center; font-size:12px; color:var(--muted)
   .gantt-label-zelle{ min-width:140px; max-width:140px; font-size:9px; }
   .gantt-tag{ font-size:7px; }
   .tl-eintrag{ page-break-inside:avoid; }
+}
+
+/* ============================================================
+   Mobilansicht (max-width: 640px)
+   ============================================================ */
+@media (max-width:640px) {
+  header{ padding:16px 14px 10px; }
+  h1{ font-size:18px; }
+  main{ padding:12px 14px; }
+
+  /* Kopfleiste: Tabs untereinander auf kleinen Screens */
+  .top-leiste{ flex-wrap:wrap; gap:6px; padding:8px 14px; }
+  .tabs{ width:100%; }
+  .tab{ font-size:12px; padding:6px 10px; }
+
+  /* Schritte: kompaktere Darstellung */
+  .schritt{ border-radius:6px; }
+  .schritt-zeile{ padding:10px 10px; }
+  .schritt-text{ font-size:13.5px; }
+  .checkbox{ width:18px; height:18px; border-radius:4px; }
+
+  /* Felder untereinander statt nebeneinander */
+  .felder{ flex-direction:column; }
+  .feld input, .feld textarea{ width:100%; box-sizing:border-box; }
+
+  /* Dashboard-Blöcke */
+  .dash-block{ padding:12px; }
+  .dash-phasenzeile{ flex-wrap:nowrap; }
+  .dash-phasenname{ min-width:120px; font-size:11px; }
+
+  /* Progress-Wrap */
+  .progress-wrap{ flex-wrap:wrap; gap:6px; }
+
+  /* Admin-Tabellen: horizontal scrollbar statt Overflow */
+  .admin-tabelle{ display:block; overflow-x:auto; white-space:nowrap; }
+
+  /* Gantt: Label-Spalte schmaler */
+  .gantt-label-zelle{ min-width:120px; max-width:120px; font-size:10px; }
+
+  /* Zeitstrahl-Tabs */
+  .zeitstrahl-tabs{ flex-wrap:wrap; }
+
+  /* Phasen-Verwaltung: immer einspaltig */
+  .phasen-liste{ display:flex !important; flex-direction:column; }
+
+  /* Vorlagen-Zeile: Phase-Selector umbrechend */
+  .vorlagen-zeile{ flex-wrap:wrap; }
+  .vorlagen-phase-feld{ max-width:100%; width:100%; }
+
+  /* Export-Leiste */
+  .export-leiste{ flex-wrap:wrap; }
+
+  /* Login-Box */
+  .login-box{ padding:16px; }
 }
