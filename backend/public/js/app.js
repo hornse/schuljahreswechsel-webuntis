@@ -247,10 +247,14 @@ async function toggleSchritt(id, erledigt) {
 
 async function aktualisiereFeld(id, feld, wert) {
   await api(`/api/schritte/${id}`, { method: 'PATCH', body: { [feld]: wert } });
-  // Kein sofortiges Neuladen bei Textfeldern (würde Fokus aus Eingabefeld reißen).
-  // Bei kann_parallel aber sofort neu rendern damit das Badge aktualisiert wird.
-  if (feld === 'kann_parallel') {
+
+  // Datumsfelder und kann_parallel: Daten neu laden und betroffene Ansichten
+  // aktualisieren. Bei reinen Textfeldern (Verantwortlich, Kommentar) bewusst
+  // kein Rerender – das würde den Fokus aus dem Eingabefeld reißen.
+  const sofortRerender = ['kann_parallel', 'start_datum', 'geplantes_datum'];
+  if (sofortRerender.includes(feld)) {
     await ladeAlles();
+    await ladeOeffentlichesDashboard();
     render();
   }
 }

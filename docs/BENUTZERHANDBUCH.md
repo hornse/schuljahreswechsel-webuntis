@@ -2,7 +2,7 @@
 
 ## Übersicht der Ansichten
 
-Die App hat drei Tabs, die für alle Besucher sichtbar sind:
+Die App hat drei Tabs:
 
 - **Dashboard** – öffentliche Statusübersicht ohne Anmeldung
 - **Zeitstrahl** – Gantt- und Timeline-Ansicht, öffentlich (ohne sensible Felder)
@@ -14,11 +14,11 @@ Die App hat drei Tabs, die für alle Besucher sichtbar sind:
 
 Zeigt ohne Anmeldung:
 - Welcher Schritt gerade dran ist
-- Überfällige Schritte (Datum in der Vergangenheit, noch nicht erledigt)
+- Überfällige Schritte (Zieldatum in der Vergangenheit, noch nicht erledigt)
 - Schritte, die in den nächsten 14 Tagen fällig sind
 - Fortschritt je Phase als Balken
 
-Bewusst nicht sichtbar ohne Anmeldung: wer zuständig ist (Verantwortlich)
+Bewusst nicht öffentlich sichtbar: wer zuständig ist (Verantwortlich)
 und eingetragene Kommentare.
 
 ---
@@ -27,13 +27,14 @@ und eingetragene Kommentare.
 
 Zwei Untertabs:
 
-**Gantt:** Horizontale Ansicht mit Datumsachse. Jeder terminierte Schritt
-erscheint als farbiger Punkt am Zieldatum. Heutiger Tag ist hervorgehoben,
+**Gantt:** Horizontale Ansicht mit Datumsachse. Schritte mit Start- und
+Zieldatum erscheinen als durchgehender farbiger Balken. Schritte mit nur
+einem Zieldatum erscheinen als Punkt. Der heutige Tag ist hervorgehoben,
 erledigte Schritte sind ausgeblendet, überfällige haben einen roten Rand.
 
-**Timeline:** Chronologische Liste von oben nach unten, mit
-Datums-Trennlinien und Phasen-Farbbalken. Praktisch für den laufenden
-Betrieb – was kommt als nächstes?
+**Timeline:** Chronologische Liste von oben nach unten mit Datums-Trennlinien
+und Phasen-Farbbalken. Praktisch für den laufenden Betrieb – was kommt als
+nächstes? Bei Schritten mit Startdatum erscheint ein „ab TT.MM."-Hinweis.
 
 In beiden Ansichten erscheinen Schritte ohne Datum am Ende als einfache
 Liste. Nach Anmeldung wird zusätzlich der Verantwortliche angezeigt.
@@ -42,7 +43,7 @@ Liste. Nach Anmeldung wird zusätzlich der Verantwortliche angezeigt.
 
 ## Anmeldung
 
-Über den Button „Anmelden" oben rechts, mit den gewohnten
+Über den Button „Anmelden" oben rechts mit den gewohnten
 WebUntis-Zugangsdaten. Ein korrektes Passwort allein reicht nicht – die
 Person muss zusätzlich von einem Admin freigegeben worden sein (siehe
 „Zugriff verwalten" unten). Schüler- und Erziehungsberechtigten-Logins
@@ -52,7 +53,7 @@ werden immer abgewiesen.
 
 ## Checkliste (nach Anmeldung)
 
-Über den Tab „Checkliste" erreichbar. Jeden Schritt anklicken um Details
+Über den Tab „Checkliste" erreichbar. Jeden Schritt anklicken, um Details
 aufzuklappen:
 
 **Häkchen** – setzt den Schritt auf erledigt (erscheint durchgestrichen,
@@ -60,19 +61,21 @@ Fortschrittsbalken aktualisiert sich).
 
 **Verantwortlich** – Freitext, wer diesen Schritt übernimmt.
 
-**Datum** – geplantes Zieldatum. Schritte mit gleichem Datum werden
-automatisch als parallel erkannt und mit einem gestrichelten Rahmen
-und „⇉ parallel"-Badge zusammengefasst.
+**Start** – optionales Startdatum. Zusammen mit dem Zieldatum wird ein
+Zeitraum definiert, der im Gantt als Balken dargestellt wird.
+
+**Zieldatum** – geplantes Enddatum. Schritte mit überlappenden Zeiträumen
+werden automatisch als parallel erkannt und mit gestricheltem Rahmen und
+„⇉ parallel"-Badge zusammengefasst.
 
 **Parallel möglich** – manuelles Flag für dieses Schuljahr, unabhängig
-vom Datum. Nützlich wenn Schritte grundsätzlich parallel laufen können,
-aber kein konkretes Datum eingetragen ist.
+von den eingetragenen Daten.
 
 **Weiterführende Infos** – erscheint wenn ein Admin Notizen hinterlegt
 hat (Markdown-formatiert). Nur für angemeldete Personen sichtbar.
 
-Alle Änderungen werden beim Verlassen des Felds automatisch gespeichert
-(kein Speichern-Button).
+Alle Änderungen werden beim Verlassen des Felds automatisch gespeichert.
+Datumsfelder und der Parallel-Toggle aktualisieren den Zeitstrahl sofort.
 
 ### Schuljahr-Auswahl
 
@@ -106,7 +109,7 @@ aktiven Schritte als benannten Snapshot. Der Snapshot ist danach
 eingefroren – spätere Änderungen an der aktiven Vorlage verändern ihn
 nicht.
 
-Snapshots eignen sich um verschiedene Prozesse parallel zu verwalten –
+Snapshots eignen sich, um verschiedene Prozesse parallel zu verwalten –
 z. B. „WebUntis-Wechsel", „Abitur-Organisation", „Geräteausgabe" jeweils
 als eigene Vorlage.
 
@@ -130,11 +133,11 @@ Hier wird die wiederkehrende Vorlage gepflegt. Änderungen wirken sich
 sofort auf das laufende Schuljahr aus.
 
 **Phasen:**
-- Oben am ⠿-Griff per Drag-and-Drop umsortieren – die Nummerierung
-  (1., 2., 3. …) passt sich automatisch an
+- Am ⠿-Griff per Drag-and-Drop umsortieren – die Nummerierung
+  (1., 2., 3. ...) passt sich automatisch an
 - Farbpicker zum Ändern der Phasenfarbe
 - Phasenname direkt im Textfeld bearbeiten
-- „Phase anlegen" für neue Phasen (Name + Farbe)
+- „Phase anlegen" für neue Phasen (Name und Farbe)
 
 **Schritte je Phase:**
 - Am ⠿-Griff innerhalb der Phase umsortieren
@@ -146,7 +149,7 @@ sofort auf das laufende Schuljahr aus.
 - „+ Neuer Schritt" am Ende jedes Phasen-Blocks
 
 **Weiterführende Infos (ausgeklappt über ▸):**
-Formatierungsbuttons für Fett, Kursiv, Aufzählung, nummerierte Liste und
+Formatierungs-Buttons für Fett, Kursiv, Aufzählung, nummerierte Liste und
 Links. Direkte Markdown-Eingabe ist ebenfalls möglich. Live-Vorschau
 erscheint direkt unter dem Textfeld. Unterstützte Syntax:
 
@@ -162,8 +165,7 @@ erscheint direkt unter dem Textfeld. Unterstützte Syntax:
 
 ## Was die App (noch) nicht kann
 
-- Kein `start_datum` pro Schritt – Parallel-Erkennung basiert auf gleichem Zieldatum
 - Keine E-Mail-Erinnerungen
-- Kein vollständiges Entfernen einer Person über die Oberfläche wenn sie
-  der letzte Admin ist (dann direkter DB-Zugriff nötig, siehe INSTALL.md)
-- Keine Ansicht des Zeitstrahls für vergangene Schuljahre (nur Checkliste)
+- Kein Zeitstrahl für vergangene Schuljahre (nur Checkliste)
+- Kein vollständiges Entfernen der letzten Admin-Person über die
+  Oberfläche (dann direkter DB-Zugriff nötig, siehe INSTALL.md)

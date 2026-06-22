@@ -5,7 +5,7 @@
 Eine mehrbenutzer­fähige Web-App zur Koordination des jährlichen WebUntis-Schuljahreswechsels –
 und generell für jeden wiederkehrenden Prozess mit Phasen, Verantwortlichen und Fortschrittsanzeige.
 
-Entwickelt von einem Lehrer/IT-Verantwortlichen an einer Gesamtschule in NRW,
+Entwickelt von einem Lehrer und IT-Verantwortlichen am Friedrich-Rückert-Gymnasium Düsseldorf,
 mit Unterstützung von [Claude](https://claude.ai) (Anthropic).
 
 ---
@@ -14,18 +14,19 @@ mit Unterstützung von [Claude](https://claude.ai) (Anthropic).
 
 - **Öffentliches Dashboard** – aktueller Stand ohne Login sichtbar (welcher Schritt ist dran,
   Fortschritt je Phase, überfällige und bald fällige Schritte)
-- **Checkliste** – Schritte abhaken, Verantwortliche und Datum eintragen, weiterführende Infos
-  mit Markdown-Formatierung
-- **Zeitstrahl** – Gantt- und Timeline-Ansicht der terminierten Schritte, öffentlich und eingeloggt
-- **Parallel-Erkennung** – Schritte mit gleichem Datum werden automatisch als parallel markiert
-  und visuell gruppiert
+- **Checkliste** – Schritte abhaken, Verantwortliche sowie Start- und Zieldatum eintragen,
+  weiterführende Infos mit Markdown-Formatierung
+- **Zeitstrahl** – Gantt- und Timeline-Ansicht der terminierten Schritte, öffentlich und eingeloggt;
+  Schritte mit Start- und Zieldatum werden als Balken dargestellt
+- **Parallel-Erkennung** – Schritte mit überlappenden Zeiträumen werden automatisch als parallel
+  markiert und visuell gruppiert
 - **Phasen-Verwaltung** – Phasen anlegen, umbenennen, einfärben und per Drag-and-Drop umsortieren;
   Nummerierung passt sich automatisch an
 - **Checkliste verwalten** – Schritte hinzufügen, bearbeiten, umsortieren (Drag-and-Drop),
   Phasen wechseln, deaktivieren; Notizen mit Markdown
 - **Vorlagen-Snapshots** – aktuellen Stand einfrieren und beim nächsten Prozess als Basis wählen;
   ermöglicht mehrere unabhängige Prozess-Vorlagen (z. B. WebUntis-Wechsel, Abitur, Geräteausgabe)
-- **Archiv-Ansicht** – vergangene Schuljahre/Prozesse read-only durchblättern
+- **Archiv-Ansicht** – vergangene Schuljahre bzw. Prozesse read-only durchblättern
 - **Zugriffsbeschränkung** – Anmeldung nur für vorab freigegebene Personen (WebUntis-Passwort
   allein reicht nicht); Admins verwalten Freigaben, Rollen und Entfernungen
 - **Druckansicht** – Checkliste und Zeitstrahl per `@media print` druckfertig
@@ -40,10 +41,10 @@ mit Unterstützung von [Claude](https://claude.ai) (Anthropic).
 | Backend | PHP ohne Framework, eigener Router |
 | Datenbank | SQLite |
 | Authentifizierung | WebUntis JSON-RPC (kein eigenes Passwort-System) |
-| Hosting | Uberspace 7 (empfohlen, auch andere PHP-Umgebungen möglich) |
+| Hosting | Uberspace 7 (empfohlen; andere PHP-Umgebungen sind möglich) |
 
 Bewusst ohne externe Abhängigkeiten – kein npm, kein Composer, kein CDN.
-Alles läuft mit dem was PHP und SQLite mitbringen.
+Alles läuft mit dem, was PHP und SQLite mitbringen.
 
 ---
 
@@ -59,7 +60,7 @@ backend/
   api/                Endpunkt-Handler je Themenbereich
   public/             Dokumentenwurzel: index.html, CSS, JS, api-router.php
 docs/
-  INSTALL.md          Einrichtung Schritt für Schritt (Uberspace + lokal)
+  INSTALL.md          Einrichtung Schritt für Schritt (Uberspace und lokal)
   BENUTZERHANDBUCH.md Bedienungsanleitung für Admins und Mitglieder
 CHANGELOG.md          Versionshistorie
 LICENSE               GNU General Public License v3.0
@@ -78,6 +79,7 @@ sqlite3 data/app.sqlite < migrations/002_seed_schritte.sql
 sqlite3 data/app.sqlite < migrations/003_phasen.sql
 sqlite3 data/app.sqlite < migrations/004_parallel_flag.sql
 sqlite3 data/app.sqlite < migrations/005_vorlagen_sets.sql
+sqlite3 data/app.sqlite < migrations/006_start_datum.sql
 
 php -S localhost:8000 -t backend/public dev-router.php
 ```
@@ -103,9 +105,9 @@ angepasst, ergänzt oder durch eigene Vorlagen ersetzt werden.
 
 ## Mitmachen
 
-Pull Requests und Issues sind willkommen. Bitte achte darauf:
+Pull Requests und Issues sind willkommen. Bitte beachten:
 
-- Keine externen Abhängigkeiten einführen (kein npm, kein Composer)
+- Keine externen Abhängigkeiten (kein npm, kein Composer)
 - PHP-Syntax kompatibel mit PHP 8.0+
 - Neue Datenbankänderungen als eigene Migration (`migrations/NNN_name.sql`)
 - CHANGELOG.md bei relevanten Änderungen aktualisieren
@@ -117,8 +119,8 @@ Pull Requests und Issues sind willkommen. Bitte achte darauf:
 Copyright (C) 2026 Sebastian Horn, Friedrich-Rückert-Gymnasium Düsseldorf
 
 Dieses Projekt steht unter der **GNU General Public License v3.0**.
-Das bedeutet: Du kannst den Code frei nutzen, verändern und weitergeben –
-aber abgeleitete Werke müssen ebenfalls unter der GPL-3.0 veröffentlicht
+Das bedeutet: Der Code kann frei genutzt, verändert und weitergegeben werden –
+abgeleitete Werke müssen jedoch ebenfalls unter der GPL-3.0 veröffentlicht
 werden. Details siehe [LICENSE](LICENSE) oder
 [gnu.org/licenses/gpl-3.0](https://www.gnu.org/licenses/gpl-3.0).
 

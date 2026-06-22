@@ -8,20 +8,39 @@ Format orientiert sich an [Keep a Changelog](https://keepachangelog.com/de/1.0.0
 ## [Unreleased]
 
 Geplant:
-- `start_datum` pro Schritt für echte Überschneidungserkennung
 - Zeitstrahl-Ansicht für vergangene Schuljahre
 - E-Mail-Erinnerungen bei überfälligen Schritten
+
+---
+
+## [1.6.0] – 2026-06-22
+
+### Hinzugefügt
+- **`start_datum`** pro Schritt-Instanz (optional): ermöglicht echte
+  Zeiträume statt einzelner Zieldaten; Migration 006
+- Gantt-Ansicht zeigt Schritte mit Start- und Zieldatum als durchgehenden
+  Balken, Schritte mit nur einem Datum weiterhin als Punkt
+- Timeline zeigt „ab TT.MM."-Hinweis wenn ein Startdatum eingetragen ist
+- Echte Überschneidungserkennung für den Parallel-Flag: zwei Schritte
+  gelten als parallel wenn sich ihre Zeiträume um mindestens einen Tag
+  überschneiden (statt nur gleiches Zieldatum)
+
+### Behoben
+- Zeitstrahl und Parallel-Gruppierung wurden nach dem Eintragen von Daten
+  erst nach einem manuellen Neuladen der Seite aktualisiert; Datumsfelder
+  lösen jetzt sofort einen Rerender aus
 
 ---
 
 ## [1.5.0] – 2026-06-21
 
 ### Hinzugefügt
-- **Zeitstrahl-Tab** (öffentlich + eingeloggt): Gantt-Ansicht und Timeline
-  als Untertabs, druckbar; öffentliche Variante ohne Verantwortlich-Feld
-- **Vorlagen-Snapshots**: aktuellen Stand als benannten Snapshot einfrieren;
-  beim Anlegen eines neuen Schuljahres als Basis wählen (ermöglicht mehrere
-  unabhängige Prozess-Vorlagen)
+- **Zeitstrahl-Tab** (öffentlich und eingeloggt): Gantt-Ansicht und
+  Timeline als Untertabs, druckbar; öffentliche Variante ohne
+  Verantwortlich-Feld
+- **Vorlagen-Snapshots**: aktuellen Stand als benannten Snapshot
+  einfrieren; beim Anlegen eines neuen Schuljahres als Basis wählen
+  (ermöglicht mehrere unabhängige Prozess-Vorlagen)
 - **Vergangene Schuljahre** durchblättern: Auswahlfeld in der Checkliste,
   Archiv-Ansicht ist read-only
 - **Person entfernen** aus der Zugriffsliste (mit Schutz: letzter Admin
@@ -50,8 +69,8 @@ Geplant:
 ## [1.3.0] – 2026-06-21
 
 ### Hinzugefügt
-- **`kann_parallel`-Flag** pro Schritt-Vorlage (Default für neue Schuljahre)
-  und pro Instanz (überschreibbar je Schuljahr); Migration 004
+- **`kann_parallel`-Flag** pro Schritt-Vorlage (Default für neue
+  Schuljahre) und pro Instanz (überschreibbar je Schuljahr); Migration 004
 - Parallel-Badge (⇉) in Checkliste und öffentlichem Dashboard
 - `kann_parallel`-Default wird beim Anlegen eines neuen Schuljahres aus
   der Vorlage in die Instanzen kopiert
@@ -79,8 +98,7 @@ Geplant:
   (nur Admins können bearbeiten), Live-Vorschau, Formatierungs-Toolbar
   (Fett, Kursiv, Listen, Links)
 - Markdown-Rendering in der Checkliste für alle eingeloggten Personen
-- Öffentliche Infos bewusst ausgeblendet (kein `beschreibung` im
-  öffentlichen Dashboard-Endpunkt)
+- Beschreibung bewusst nicht im öffentlichen Dashboard-Endpunkt enthalten
 
 ---
 

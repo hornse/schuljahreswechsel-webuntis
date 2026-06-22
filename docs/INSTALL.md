@@ -11,6 +11,7 @@ sqlite3 data/app.sqlite < migrations/002_seed_schritte.sql
 sqlite3 data/app.sqlite < migrations/003_phasen.sql
 sqlite3 data/app.sqlite < migrations/004_parallel_flag.sql
 sqlite3 data/app.sqlite < migrations/005_vorlagen_sets.sql
+sqlite3 data/app.sqlite < migrations/006_start_datum.sql
 
 php -S localhost:8000 -t backend/public dev-router.php
 ```
@@ -21,7 +22,7 @@ php -S localhost:8000 -t backend/public dev-router.php
 
 ### 1. Code auf den Server bringen
 
-Empfohlen per Git mit zwei Remotes (GitHub + Uberspace bare repo):
+Empfohlen per Git mit zwei Remotes (GitHub und Uberspace bare repo):
 
 ```bash
 # Einmalig auf dem Server: bare repo anlegen
@@ -29,7 +30,7 @@ mkdir -p ~/repos/schuljahreswechsel-webuntis.git
 cd ~/repos/schuljahreswechsel-webuntis.git
 git init --bare
 
-# post-receive Hook (Datei anlegen, ausführbar machen)
+# post-receive Hook anlegen und ausführbar machen
 cat > hooks/post-receive << 'EOF'
 #!/bin/bash
 GIT_WORK_TREE=/var/www/virtual/DEIN_USER/schuljahreswechsel-webuntis-src git checkout -f main
@@ -51,9 +52,9 @@ cd /var/www/virtual/DEIN_USER
 ln -s schuljahreswechsel-webuntis-src/backend/public schuljahreswechsel.deine-domain.de
 ```
 
-Ein Symlink *innerhalb* von `html/` funktioniert nicht – er muss
-Geschwister von `html/` sein. Die `.htaccess` enthält bereits
-`RewriteBase /`, das für diesen Mechanismus erforderlich ist.
+Ein Symlink innerhalb von `html/` funktioniert nicht – er muss Geschwister
+von `html/` sein. Die `.htaccess` enthält bereits `RewriteBase /`, das für
+diesen Mechanismus erforderlich ist.
 
 ### 3. Konfiguration anlegen
 
@@ -83,16 +84,17 @@ sqlite3 data/app.sqlite < migrations/002_seed_schritte.sql
 sqlite3 data/app.sqlite < migrations/003_phasen.sql
 sqlite3 data/app.sqlite < migrations/004_parallel_flag.sql
 sqlite3 data/app.sqlite < migrations/005_vorlagen_sets.sql
+sqlite3 data/app.sqlite < migrations/006_start_datum.sql
 ```
 
 `sqlite3` ist auf Uberspace vorinstalliert. PHP läuft unter dem eigenen
 Uberspace-Account, daher hat es automatisch Schreibrechte auf `data/`.
 
-### 5. Erste:n Admin einrichten
+### 5. Erste Admin-Person einrichten
 
 Ein korrektes WebUntis-Passwort allein reicht nicht – jede Person muss
-vorab in `benutzer_rollen` stehen. Den ersten Admin per SQL eintragen,
-bevor er/sie sich das erste Mal anmeldet:
+vorab in `benutzer_rollen` stehen. Die erste Admin-Person per SQL eintragen,
+bevor sie sich das erste Mal anmeldet:
 
 ```bash
 sqlite3 data/app.sqlite \
@@ -112,8 +114,8 @@ git push uberspace main
 ```
 
 Der post-receive Hook auf Uberspace aktualisiert den Code automatisch.
-Wenn eine neue Migration dazukommt (z. B. nach einem Update), muss sie
-einmalig manuell auf dem Server eingespielt werden:
+Wenn eine neue Migration dazukommt, muss sie einmalig manuell auf dem
+Server eingespielt werden:
 
 ```bash
 sqlite3 /var/www/virtual/DEIN_USER/schuljahreswechsel-webuntis-src/data/app.sqlite \
@@ -129,3 +131,4 @@ sqlite3 /var/www/virtual/DEIN_USER/schuljahreswechsel-webuntis-src/data/app.sqli
 | `003_phasen.sql` | Phasen als eigene Tabelle (aus schritt_vorlagen extrahiert) |
 | `004_parallel_flag.sql` | `kann_parallel`-Flag auf Vorlagen und Instanzen |
 | `005_vorlagen_sets.sql` | Vorlagen-Snapshots (vorlagen_sets, vorlagen_set_phasen, vorlagen_set_schritte) |
+| `006_start_datum.sql` | `start_datum` pro Schritt-Instanz für Zeitraum-Darstellung im Gantt |
