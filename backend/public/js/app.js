@@ -708,6 +708,12 @@ function renderSchritt(schritt, readonly = false) {
       input.addEventListener('change', () => {
         const wert = input.type === 'checkbox' ? input.checked : input.value;
         aktualisiereFeld(schritt.id, input.dataset.feld, wert);
+        // Kommentar-Wert sofort in STATE aktualisieren damit er beim nächsten
+        // Rerender (z. B. durch Häkchen-Klick) nicht auf den alten Wert zurückfällt
+        if (input.dataset.feld === 'kommentar') {
+          const gefunden = STATE.schritte.find((s) => s.id === schritt.id);
+          if (gefunden) gefunden.kommentar = wert;
+        }
       });
     });
   }
