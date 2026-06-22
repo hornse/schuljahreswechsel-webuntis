@@ -12,6 +12,7 @@ sqlite3 data/app.sqlite < migrations/003_phasen.sql
 sqlite3 data/app.sqlite < migrations/004_parallel_flag.sql
 sqlite3 data/app.sqlite < migrations/005_vorlagen_sets.sql
 sqlite3 data/app.sqlite < migrations/006_start_datum.sql
+sqlite3 data/app.sqlite < migrations/007_aktivitaeten.sql
 
 php -S localhost:8000 -t backend/public dev-router.php
 ```
@@ -72,9 +73,6 @@ In `config/config.php` mindestens setzen:
 ],
 ```
 
-Diese Werte stehen in der MRBS-Konfiguration unter
-`$auth["web_untis"]["school"]` und `$auth["web_untis"]["base_url"]`.
-
 ### 4. Datenbank anlegen
 
 ```bash
@@ -85,6 +83,7 @@ sqlite3 data/app.sqlite < migrations/003_phasen.sql
 sqlite3 data/app.sqlite < migrations/004_parallel_flag.sql
 sqlite3 data/app.sqlite < migrations/005_vorlagen_sets.sql
 sqlite3 data/app.sqlite < migrations/006_start_datum.sql
+sqlite3 data/app.sqlite < migrations/007_aktivitaeten.sql
 ```
 
 `sqlite3` ist auf Uberspace vorinstalliert. PHP läuft unter dem eigenen
@@ -132,3 +131,4 @@ sqlite3 /var/www/virtual/DEIN_USER/schuljahreswechsel-webuntis-src/data/app.sqli
 | `004_parallel_flag.sql` | `kann_parallel`-Flag auf Vorlagen und Instanzen |
 | `005_vorlagen_sets.sql` | Vorlagen-Snapshots (vorlagen_sets, vorlagen_set_phasen, vorlagen_set_schritte) |
 | `006_start_datum.sql` | `start_datum` pro Schritt-Instanz für Zeitraum-Darstellung im Gantt |
+| `007_aktivitaeten.sql` | Aktivitätsprotokoll-Tabelle |

@@ -15,21 +15,27 @@ mit Unterstützung von [Claude](https://claude.ai) (Anthropic).
 - **Öffentliches Dashboard** – aktueller Stand ohne Login sichtbar (welcher Schritt ist dran,
   Fortschritt je Phase, überfällige und bald fällige Schritte)
 - **Checkliste** – Schritte abhaken, Verantwortliche sowie Start- und Zieldatum eintragen,
-  weiterführende Infos mit Markdown-Formatierung
-- **Zeitstrahl** – Gantt- und Timeline-Ansicht der terminierten Schritte, öffentlich und eingeloggt;
-  Schritte mit Start- und Zieldatum werden als Balken dargestellt
-- **Parallel-Erkennung** – Schritte mit überlappenden Zeiträumen werden automatisch als parallel
-  markiert und visuell gruppiert
-- **Phasen-Verwaltung** – Phasen anlegen, umbenennen, einfärben und per Drag-and-Drop umsortieren;
-  Nummerierung passt sich automatisch an
+  Kommentare und weiterführende Infos mit Markdown-Formatierung
+- **Zeitstrahl** – Gantt- und Timeline-Ansicht der terminierten Schritte, öffentlich und
+  eingeloggt; Schritte mit Start- und Zieldatum als Balken, Zoom-Schieberegler (Tages- bis
+  Wochenansicht)
+- **Export** – Checkliste als CSV, Zeitstrahl als SVG-Vektorgrafik, beides auch als PDF
+  über den Browser-Druckdialog
+- **Aktivitätsprotokoll** – wer hat wann was erledigt, als Tabelle und CSV-Export
+- **Parallel-Erkennung** – Schritte mit überlappenden Zeiträumen werden automatisch als
+  parallel markiert und visuell gruppiert
+- **Phasen-Verwaltung** – Phasen anlegen, umbenennen, einfärben (eigene Farbpalette) und
+  per Drag-and-Drop umsortieren; Nummerierung passt sich automatisch an
 - **Checkliste verwalten** – Schritte hinzufügen, bearbeiten, umsortieren (Drag-and-Drop),
-  Phasen wechseln, deaktivieren; Notizen mit Markdown
-- **Vorlagen-Snapshots** – aktuellen Stand einfrieren und beim nächsten Prozess als Basis wählen;
-  ermöglicht mehrere unabhängige Prozess-Vorlagen (z. B. WebUntis-Wechsel, Abitur, Geräteausgabe)
+  Phasen wechseln, deaktivieren; Notizen mit Markdown und Live-Vorschau
+- **Vorlagen-Snapshots** – aktuellen Stand einfrieren und beim nächsten Prozess als Basis
+  wählen; ermöglicht mehrere unabhängige Prozess-Vorlagen (z. B. WebUntis-Wechsel, Abitur,
+  Geräteausgabe)
 - **Archiv-Ansicht** – vergangene Schuljahre bzw. Prozesse read-only durchblättern
 - **Zugriffsbeschränkung** – Anmeldung nur für vorab freigegebene Personen (WebUntis-Passwort
   allein reicht nicht); Admins verwalten Freigaben, Rollen und Entfernungen
 - **Druckansicht** – Checkliste und Zeitstrahl per `@media print` druckfertig
+- **Mobilansicht** – optimiertes Layout für kleine Bildschirme
 
 ---
 
@@ -80,6 +86,7 @@ sqlite3 data/app.sqlite < migrations/003_phasen.sql
 sqlite3 data/app.sqlite < migrations/004_parallel_flag.sql
 sqlite3 data/app.sqlite < migrations/005_vorlagen_sets.sql
 sqlite3 data/app.sqlite < migrations/006_start_datum.sql
+sqlite3 data/app.sqlite < migrations/007_aktivitaeten.sql
 
 php -S localhost:8000 -t backend/public dev-router.php
 ```

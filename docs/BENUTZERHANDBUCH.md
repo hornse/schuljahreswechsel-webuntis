@@ -18,8 +18,8 @@ Zeigt ohne Anmeldung:
 - Schritte, die in den nächsten 14 Tagen fällig sind
 - Fortschritt je Phase als Balken
 
-Bewusst nicht öffentlich sichtbar: wer zuständig ist (Verantwortlich)
-und eingetragene Kommentare.
+Bewusst nicht öffentlich sichtbar: Verantwortlich, Kommentare und
+weiterführende Infos.
 
 ---
 
@@ -31,13 +31,19 @@ Zwei Untertabs:
 Zieldatum erscheinen als durchgehender farbiger Balken. Schritte mit nur
 einem Zieldatum erscheinen als Punkt. Der heutige Tag ist hervorgehoben,
 erledigte Schritte sind ausgeblendet, überfällige haben einen roten Rand.
+Ein Zoom-Schieberegler (1–7 Tage pro Spalte) ermöglicht Tages- bis
+Wochenansicht.
 
-**Timeline:** Chronologische Liste von oben nach unten mit Datums-Trennlinien
-und Phasen-Farbbalken. Praktisch für den laufenden Betrieb – was kommt als
-nächstes? Bei Schritten mit Startdatum erscheint ein „ab TT.MM."-Hinweis.
+**Timeline:** Chronologische Liste von oben nach unten mit Datums-
+Trennlinien und Phasen-Farbbalken. Bei Schritten mit Startdatum erscheint
+ein „ab TT.MM."-Hinweis.
 
 In beiden Ansichten erscheinen Schritte ohne Datum am Ende als einfache
 Liste. Nach Anmeldung wird zusätzlich der Verantwortliche angezeigt.
+
+**Export:** Über die Schaltflächen oben rechts lässt sich der Zeitstrahl
+als SVG-Datei (⬇ SVG) oder über den Browser-Druckdialog als PDF
+(🖨 Drucken) exportieren.
 
 ---
 
@@ -57,7 +63,8 @@ werden immer abgewiesen.
 aufzuklappen:
 
 **Häkchen** – setzt den Schritt auf erledigt (erscheint durchgestrichen,
-Fortschrittsbalken aktualisiert sich).
+Fortschrittsbalken aktualisiert sich). Die Aktion wird im
+Aktivitätsprotokoll aufgezeichnet.
 
 **Verantwortlich** – Freitext, wer diesen Schritt übernimmt.
 
@@ -71,11 +78,21 @@ werden automatisch als parallel erkannt und mit gestricheltem Rahmen und
 **Parallel möglich** – manuelles Flag für dieses Schuljahr, unabhängig
 von den eingetragenen Daten.
 
+**Kommentar** – schuljahrspezifische Kurznotiz zum aktuellen Stand,
+z. B. „verzögert sich, Kollegin ist krank". Nur für angemeldete Personen
+sichtbar. Im Archiv-Modus wird ein vorhandener Kommentar angezeigt aber
+nicht bearbeitet.
+
 **Weiterführende Infos** – erscheint wenn ein Admin Notizen hinterlegt
 hat (Markdown-formatiert). Nur für angemeldete Personen sichtbar.
 
 Alle Änderungen werden beim Verlassen des Felds automatisch gespeichert.
 Datumsfelder und der Parallel-Toggle aktualisieren den Zeitstrahl sofort.
+Aufgeklappte Detail-Boxen bleiben auch nach einer Aktualisierung offen.
+
+**Export:** Über ⬇ CSV wird die vollständige Checkliste mit allen Feldern
+als CSV-Datei heruntergeladen (UTF-8, Semikolon-getrennt, öffnet direkt
+in Excel). Über 🖨 PDF öffnet sich der Browser-Druckdialog.
 
 ### Schuljahr-Auswahl
 
@@ -109,9 +126,9 @@ aktiven Schritte als benannten Snapshot. Der Snapshot ist danach
 eingefroren – spätere Änderungen an der aktiven Vorlage verändern ihn
 nicht.
 
-Snapshots eignen sich, um verschiedene Prozesse parallel zu verwalten –
-z. B. „WebUntis-Wechsel", „Abitur-Organisation", „Geräteausgabe" jeweils
-als eigene Vorlage.
+Snapshots eignen sich, um verschiedene Prozesse parallel zu verwalten,
+z. B. „WebUntis-Wechsel", „Abitur-Organisation" oder „Geräteausgabe"
+jeweils als eigene Vorlage.
 
 Über „löschen" wird ein Snapshot vollständig entfernt (mit
 Bestätigungsdialog).
@@ -135,7 +152,8 @@ sofort auf das laufende Schuljahr aus.
 **Phasen:**
 - Am ⠿-Griff per Drag-and-Drop umsortieren – die Nummerierung
   (1., 2., 3. ...) passt sich automatisch an
-- Farbpicker zum Ändern der Phasenfarbe
+- Farbwahl über die eigene Farbpalette (15 vordefinierte Farben plus
+  Hex-Eingabefeld)
 - Phasenname direkt im Textfeld bearbeiten
 - „Phase anlegen" für neue Phasen (Name und Farbe)
 
@@ -160,6 +178,13 @@ erscheint direkt unter dem Textfeld. Unterstützte Syntax:
 | `- Punkt` | Aufzählung |
 | `1. Punkt` | Nummerierte Liste |
 | `[Linktext](https://...)` | Link |
+
+### Aktivitätsprotokoll
+
+Zeigt die letzten 200 Aktionen im aktuellen Schuljahr: wer hat wann
+welchen Schritt erledigt, Verantwortliche gesetzt, Datum eingetragen oder
+einen Kommentar hinterlegt. Über „⬇ Als CSV exportieren" lässt sich das
+vollständige Protokoll herunterladen.
 
 ---
 

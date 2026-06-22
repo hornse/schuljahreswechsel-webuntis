@@ -10,6 +10,59 @@ Format orientiert sich an [Keep a Changelog](https://keepachangelog.com/de/1.0.0
 Geplant:
 - Zeitstrahl-Ansicht für vergangene Schuljahre
 - E-Mail-Erinnerungen bei überfälligen Schritten
+- `develop`-Branch für Parallelentwicklung
+
+---
+
+## [1.8.0] – 2026-06-22
+
+### Behoben
+- SVG-Export: Sonderzeichen (`&`, `<`, `>`) in Schritttiteln verursachten
+  einen XML-Parse-Fehler in Firefox und Inkscape; alle Texte werden jetzt
+  korrekt als XML-Entities escaped
+- SVG-Export: Balken die über das Datumsende hinausragten werden nun per
+  `clipPath` sauber abgeschnitten
+- SVG-Export: Titel wurden zu früh abgekürzt (nach 28 Zeichen); jetzt
+  erst nach 32 Zeichen mit korrektem Unicode-Ellipsis-Zeichen
+
+### Geändert
+- SVG-Export: Label-Spalte breiter (240 px), Gitternetzlinien, Heute-
+  Markierung und Zeilenabstand verbessert
+- Seitenränder in der HTML-Ansicht vergrößert (40 px / 60 px)
+- Zeitstrahl-Druckregeln bereinigt: doppelter `@media print`-Block
+  entfernt, Farben und Balken werden beim Drucken korrekt ausgegeben
+
+---
+
+## [1.7.0] – 2026-06-22
+
+### Hinzugefügt
+- **Kommentarfeld** in der Checkliste: schuljahrspezifische Kurznotiz
+  pro Schritt, nur für angemeldete Personen sichtbar; im Archiv-Modus
+  read-only angezeigt
+- **CSV-Export** der Checkliste (⬇ CSV): alle Felder inkl. Verantwortlich,
+  Datum, Kommentar; UTF-8 BOM für korrektes Öffnen in Excel
+- **SVG-Export** des Zeitstrahls (⬇ SVG): skalierbare Vektorgrafik mit
+  Balken, Phasen, Datumsachse und Heute-Markierung
+- **PDF-Export** über Browser-Druckdialog (🖨 PDF) in Checkliste und
+  Zeitstrahl
+- **Aktivitätsprotokoll** im Admin-Bereich: die letzten 200 Einträge
+  mit Zeitstempel, Person, Schritt und Aktion; als CSV exportierbar;
+  Migration 007
+- **Mobilansicht** optimiert: kompakteres Layout unter 640 px,
+  Tabellen horizontal scrollbar, Felder untereinander statt nebeneinander
+- **Aufklapp-Zustand** bleibt nach Rerender erhalten: offene Schritt-
+  und Vorlagen-Detail-Boxen werden in `STATE` gespeichert und nach
+  Datumseingabe oder anderen Aktualisierungen wiederhergestellt
+- **Eigene Farbpalette** ersetzt den nativen Browser-Farbpicker:
+  15 vordefinierte Farb-Kästchen plus Hex-Eingabefeld mit Live-Vorschau
+- **Gantt-Zoom**: Schieberegler (1–7 Tage pro Spalte) über dem Gantt
+  für Tages- bis Wochenansicht
+- Volle Bildschirmbreite genutzt (kein `max-width` mehr)
+
+### Behoben
+- Aufklappbare Boxen klappten nach Datumseingabe zu, weil der Rerender
+  den DOM neu aufgebaut hat; behoben durch Zustandsspeicherung in STATE
 
 ---
 
