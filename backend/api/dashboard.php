@@ -41,7 +41,7 @@ function handleDashboard(PDO $db): void
     }
 
     $stmt = $db->prepare(
-        'SELECT si.erledigt, si.geplantes_datum, si.kann_parallel,
+        'SELECT si.erledigt, si.start_datum, si.geplantes_datum, si.kann_parallel,
                 p.name AS phase, p.farbe AS phase_farbe, p.reihenfolge AS phase_reihenfolge,
                 sv.reihenfolge, sv.titel
          FROM schritt_instanzen si

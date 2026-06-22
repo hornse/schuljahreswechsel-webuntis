@@ -39,8 +39,8 @@ function handleListSchritte(PDO $db): void
 
     $stmt = $db->prepare(
         'SELECT si.id, si.erledigt, si.verantwortlich_user, si.verantwortlich_anzeigename,
-                si.geplantes_datum, si.erledigt_am, si.erledigt_von, si.kommentar,
-                si.kann_parallel,
+                si.start_datum, si.geplantes_datum, si.erledigt_am, si.erledigt_von,
+                si.kommentar, si.kann_parallel,
                 p.name AS phase, p.farbe AS phase_farbe, p.reihenfolge AS phase_reihenfolge,
                 sv.reihenfolge, sv.titel, sv.beschreibung
          FROM schritt_instanzen si
@@ -66,7 +66,7 @@ function handleUpdateSchritt(PDO $db, array $config, array $input, array $params
     // Sonderlogik (siehe unten), "schuljahr_id"/"vorlage_id" dürfen über
     // diesen Endpunkt nie verändert werden - deshalb keine generische
     // "alles aus $input übernehmen"-Logik, sondern eine Whitelist.
-    $textfelder = ['verantwortlich_user', 'verantwortlich_anzeigename', 'geplantes_datum', 'kommentar'];
+    $textfelder = ['verantwortlich_user', 'verantwortlich_anzeigename', 'start_datum', 'geplantes_datum', 'kommentar'];
     $sets = [];
     $werte = [':id' => $id];
 

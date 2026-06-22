@@ -315,11 +315,23 @@ footer{ padding:14px 20px; text-align:center; font-size:12px; color:var(--muted)
 .gantt-heute-spalte{ background:rgba(91,111,168,.06); }
 .gantt-heute-spalte .gantt-tag{ border-left-color:var(--accent-default); }
 .gantt-balken{
-  width:12px; height:12px; border-radius:50%;
-  margin:0 auto; flex-shrink:0;
+  height:10px; margin:auto 0;
 }
-.gantt-erledigt{ opacity:.4; }
-.gantt-ueberfaellig{ outline:2px solid #c0392b; outline-offset:2px; }
+.gantt-punkt{
+  width:12px; height:12px; border-radius:50%;
+  margin:0 auto;
+}
+.gantt-balken-start{
+  border-radius:5px 0 0 5px; width:100%; margin-left:25%;
+}
+.gantt-balken-mitte{
+  border-radius:0; width:100%; height:10px;
+}
+.gantt-balken-ende{
+  border-radius:0 5px 5px 0; width:75%;
+}
+.gantt-erledigt{ opacity:.35; }
+.gantt-ueberfaellig{ outline:2px solid #c0392b; outline-offset:1px; border-radius:3px; }
 
 /* ============================================================
    Timeline

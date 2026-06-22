@@ -507,15 +507,8 @@ function renderChecklist() {
   `;
   container.appendChild(fortschritt);
 
-  // Datum-basierte Parallel-Erkennung: alle Daten bei denen mehr als
-  // ein Schritt dasselbe geplantes_datum hat = parallele Schritte.
-  const datumZaehlungen = new Map();
-  for (const s of STATE.schritte) {
-    if (s.geplantes_datum) {
-      datumZaehlungen.set(s.geplantes_datum, (datumZaehlungen.get(s.geplantes_datum) ?? 0) + 1);
-    }
-  }
-  const parallelDaten = new Set([...datumZaehlungen.entries()].filter(([, n]) => n > 1).map(([d]) => d));
+  // Überschneidungsbasierte Parallel-Erkennung
+  const parallelIds = berechneParallelIds(STATE.schritte);
 
   let aktuellePhase = null;
   let aktiverParallelBlock = null; // aktuell offener Parallel-Wrapper
@@ -537,7 +530,7 @@ function renderChecklist() {
       container.appendChild(h);
     }
 
-    const istParallel = schritt.geplantes_datum && parallelDaten.has(schritt.geplantes_datum);
+    const istParallel = parallelIds.has(schritt.id);
 
     if (istParallel && schritt.geplantes_datum === aktivesParallelDatum) {
       // Gleiche Gruppe – zum offenen Block hinzufügen
@@ -596,7 +589,10 @@ function renderSchritt(schritt, readonly = false) {
         <div class="feld"><label>Verantwortlich</label>
           <input type="text" data-feld="verantwortlich_anzeigename" value="${schritt.verantwortlich_anzeigename ?? ''}" ${readonly ? 'disabled' : ''}>
         </div>
-        <div class="feld"><label>Datum</label>
+        <div class="feld"><label>Start</label>
+          <input type="date" data-feld="start_datum" value="${schritt.start_datum ?? ''}" ${readonly ? 'disabled' : ''}>
+        </div>
+        <div class="feld"><label>Zieldatum</label>
           <input type="date" data-feld="geplantes_datum" value="${schritt.geplantes_datum ?? ''}" ${readonly ? 'disabled' : ''}>
         </div>
         ${!readonly ? `
@@ -634,8 +630,34 @@ function renderSchritt(schritt, readonly = false) {
   return el;
 }
 
-// ============================================================================
-// Dashboard ("was ist gerade dran") - öffentlich UND eingeloggt
+// Prüft ob zwei Schritte sich zeitlich überschneiden (mind. 1 Tag).
+// Schritte ohne start_datum werden als Einzel-Tag behandelt
+// (start = geplantes_datum). Schritte ohne jedes Datum sind nie parallel.
+function ueberschneidenSich(a, b) {
+  if (!a.geplantes_datum || !b.geplantes_datum) return false;
+  const aStart = a.start_datum ?? a.geplantes_datum;
+  const aEnde  = a.geplantes_datum;
+  const bStart = b.start_datum ?? b.geplantes_datum;
+  const bEnde  = b.geplantes_datum;
+  // Überschneidung: aStart <= bEnde && bStart <= aEnde
+  return aStart <= bEnde && bStart <= aEnde;
+}
+
+// Gibt ein Set von Schritt-IDs zurück, die mit mindestens einem anderen
+// Schritt zeitlich überlappen.
+function berechneParallelIds(liste) {
+  const terminiert = liste.filter((s) => s.geplantes_datum);
+  const parallelIds = new Set();
+  for (let i = 0; i < terminiert.length; i++) {
+    for (let j = i + 1; j < terminiert.length; j++) {
+      if (ueberschneidenSich(terminiert[i], terminiert[j])) {
+        parallelIds.add(terminiert[i].id ?? i);
+        parallelIds.add(terminiert[j].id ?? j);
+      }
+    }
+  }
+  return parallelIds;
+}
 // ============================================================================
 // Bewusst ohne eigenen zusätzlichen API-Endpunkt für die Berechnung selbst -
 // das passiert im Browser auf Basis der schon geladenen Daten. Ohne Login
@@ -676,13 +698,8 @@ function berechneDashboardDaten(liste) {
     .sort((a, b) => a.geplantes_datum.localeCompare(b.geplantes_datum));
 
   // Daten mit mehr als einem offenen Schritt = parallel
-  const datumZaehlungen = new Map();
-  for (const s of offen) {
-    if (s.geplantes_datum) {
-      datumZaehlungen.set(s.geplantes_datum, (datumZaehlungen.get(s.geplantes_datum) ?? 0) + 1);
-    }
-  }
-  const parallelDaten = new Set([...datumZaehlungen.entries()].filter(([, n]) => n > 1).map(([d]) => d));
+  // Überschneidungsbasierte Parallel-Erkennung
+  const parallelIds = berechneParallelIds(offen);
 
   const phasen = new Map();
   for (const s of liste) {
@@ -694,7 +711,7 @@ function berechneDashboardDaten(liste) {
     if (s.erledigt) eintrag.erledigt += 1;
   }
 
-  return { aktuell, ueberfaellig, demnaechst, phasen, parallelDaten };
+  return { aktuell, ueberfaellig, demnaechst, phasen, parallelIds };
 }
 
 function renderDashboard() {
@@ -718,7 +735,7 @@ function renderDashboard() {
     return container;
   }
 
-  const { aktuell, ueberfaellig, demnaechst, phasen, parallelDaten } = berechneDashboardDaten(liste);
+  const { aktuell, ueberfaellig, demnaechst, phasen, parallelIds } = berechneDashboardDaten(liste);
 
   const aktuellBlock = document.createElement('div');
   aktuellBlock.className = 'dash-block dash-aktuell';
@@ -728,7 +745,7 @@ function renderDashboard() {
     if (aktuell.verantwortlich_anzeigename !== undefined) {
       metaTeile.push(aktuell.verantwortlich_anzeigename || 'noch niemand zugewiesen');
     }
-    const parallelHinweis = (aktuell.kann_parallel || (aktuell.geplantes_datum && parallelDaten.has(aktuell.geplantes_datum)))
+    const parallelHinweis = (aktuell.kann_parallel || (parallelIds.has(aktuell.id)))
       ? `<span class="parallel-badge" style="margin-left:6px;">⇉ parallel</span>` : '';
     aktuellBlock.innerHTML = `
       <p class="dash-label">Aktuell dran</p>
@@ -741,10 +758,10 @@ function renderDashboard() {
   container.appendChild(aktuellBlock);
 
   if (ueberfaellig.length) {
-    container.appendChild(renderDashListe('Überfällig', ueberfaellig, true, parallelDaten));
+    container.appendChild(renderDashListe('Überfällig', ueberfaellig, true, parallelIds));
   }
   if (demnaechst.length) {
-    container.appendChild(renderDashListe('Demnächst (14 Tage)', demnaechst, false, parallelDaten));
+    container.appendChild(renderDashListe('Demnächst (14 Tage)', demnaechst, false, parallelIds));
   }
 
   const phasenBlock = document.createElement('div');
@@ -766,11 +783,11 @@ function renderDashboard() {
   return container;
 }
 
-function renderDashListe(titel, liste, istUeberfaellig, parallelDaten = new Set()) {
+function renderDashListe(titel, liste, istUeberfaellig, parallelIds = new Set()) {
   const block = document.createElement('div');
   block.className = 'dash-block';
   const items = liste.map((s) => {
-    const istParallel = s.kann_parallel || (s.geplantes_datum && parallelDaten.has(s.geplantes_datum));
+    const istParallel = s.kann_parallel || (parallelIds.has(s.id));
     return `
       <li>
         <span class="dash-datum ${istUeberfaellig ? 'dash-datum-rot' : ''}">${formatDatum(s.geplantes_datum)}</span>
@@ -835,7 +852,7 @@ function renderGantt(liste, eingeloggt) {
     return wrapper;
   }
 
-  const daten    = mitDatum.map((s) => s.geplantes_datum).sort();
+  const daten    = mitDatum.flatMap((s) => s.start_datum ? [s.start_datum, s.geplantes_datum] : [s.geplantes_datum]).sort();
   const minDatum = new Date(daten[0]);
   const maxDatum = new Date(daten[daten.length - 1]);
   const spanTage = Math.max(7, Math.ceil((maxDatum - minDatum) / 86400000) + 2);
@@ -885,19 +902,49 @@ function renderGantt(liste, eingeloggt) {
     }
 
     if (!schritt.geplantes_datum) continue;
-    const offset = Math.round((new Date(schritt.geplantes_datum) - minDatum) / 86400000);
+
+    // start_datum → Balken; nur geplantes_datum → Punkt (Kreis)
+    const startOffset = schritt.start_datum
+      ? Math.round((new Date(schritt.start_datum) - minDatum) / 86400000)
+      : null;
+    const endeOffset  = Math.round((new Date(schritt.geplantes_datum) - minDatum) / 86400000);
+    const hatBalken   = startOffset !== null && startOffset < endeOffset;
+
     const zeile  = document.createElement('div');
     zeile.className = 'gantt-zeile';
+    const statusKlasse = schritt.erledigt ? 'gantt-erledigt' : schritt.geplantes_datum < heute ? 'gantt-ueberfaellig' : '';
     const meta = eingeloggt && schritt.verantwortlich_anzeigename ? ` · ${schritt.verantwortlich_anzeigename}` : '';
+
     let rasterHtml = '';
     for (let i = 0; i < spanTage; i++) {
       const d = new Date(minDatum); d.setDate(d.getDate() + i);
       const istHeute2 = d.toISOString().slice(0, 10) === heute;
-      rasterHtml += `<div class="gantt-zelle${istHeute2 ? ' gantt-heute-spalte' : ''}">
-        ${i === offset ? `<div class="gantt-balken ${schritt.erledigt ? 'gantt-erledigt' : schritt.geplantes_datum < heute ? 'gantt-ueberfaellig' : ''}"
-          style="background:${schritt.phase_farbe};" title="${schritt.titel}${meta}"></div>` : ''}
-      </div>`;
+
+      let inhalt = '';
+      if (hatBalken) {
+        // Balken-Modus: erstes Segment = linke Hälfte mit abgerundeter linker Ecke,
+        // mittlere = Verbindung, letztes = rechte Hälfte mit abgerundeter rechter Ecke
+        if (i === startOffset) {
+          inhalt = `<div class="gantt-balken gantt-balken-start ${statusKlasse}"
+            style="background:${schritt.phase_farbe};" title="${schritt.titel}${meta}"></div>`;
+        } else if (i > startOffset && i < endeOffset) {
+          inhalt = `<div class="gantt-balken gantt-balken-mitte ${statusKlasse}"
+            style="background:${schritt.phase_farbe};"></div>`;
+        } else if (i === endeOffset) {
+          inhalt = `<div class="gantt-balken gantt-balken-ende ${statusKlasse}"
+            style="background:${schritt.phase_farbe};"></div>`;
+        }
+      } else {
+        // Punkt-Modus (kein start_datum oder start = ende)
+        if (i === endeOffset) {
+          inhalt = `<div class="gantt-balken gantt-punkt ${statusKlasse}"
+            style="background:${schritt.phase_farbe};" title="${schritt.titel}${meta}"></div>`;
+        }
+      }
+
+      rasterHtml += `<div class="gantt-zelle${istHeute2 ? ' gantt-heute-spalte' : ''}">${inhalt}</div>`;
     }
+
     zeile.innerHTML = `
       <div class="gantt-label-zelle gantt-schritt-label ${schritt.erledigt ? 'erledigt' : ''}">${schritt.erledigt ? '✓ ' : ''}${schritt.titel}${meta}</div>
       <div class="gantt-raster" style="grid-template-columns:repeat(${spanTage},1fr);">${rasterHtml}</div>
@@ -943,6 +990,8 @@ function renderTimeline(liste, eingeloggt) {
     const phasenNr = schritt.phase.match(/^\d+\./)?.[0] ?? '';
     const meta     = eingeloggt && schritt.verantwortlich_anzeigename
       ? `<span class="tl-meta">${schritt.verantwortlich_anzeigename}</span>` : '';
+    const zeitraum = schritt.start_datum
+      ? `<span class="tl-meta">ab ${formatDatum(schritt.start_datum)}</span>` : '';
     const parallelBadge = schritt.kann_parallel ? `<span class="parallel-badge" style="font-size:9px;">⇉</span>` : '';
 
     el.innerHTML = `
@@ -950,7 +999,7 @@ function renderTimeline(liste, eingeloggt) {
       <div class="tl-inhalt">
         <span class="tl-phase" style="color:${schritt.phase_farbe};">${phasenNr}</span>
         <span class="tl-titel ${schritt.erledigt ? 'erledigt' : ''}">${schritt.titel}</span>
-        ${parallelBadge}${meta}
+        ${parallelBadge}${zeitraum}${meta}
       </div>
     `;
     tl.appendChild(el);
