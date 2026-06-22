@@ -7,11 +7,9 @@
 
 /**
  * Endpunkte:
- *   GET /api/export/csv          – Checkliste als CSV-Download
- *   GET /api/export/csv?schuljahr_id=X – bestimmtes Schuljahr
- *
- * Kein Admin erforderlich, aber Login nötig (enthält Verantwortlich und
- * Kommentar, die öffentlich nicht sichtbar sind).
+ *   GET /api/export/csv              – Checkliste als CSV-Download
+ *   GET /api/export/aktivitaeten     – Aktivitätsprotokoll als CSV
+ *   GET /api/aktivitaeten            – Aktivitätsprotokoll als JSON
  */
 
 use App\Guard;
@@ -69,12 +67,12 @@ function handleExportAktivitaeten(PDO $db, array $config, array $input): void
     echo "\xEF\xBB\xBF";
 
     $ereignisTexte = [
-        'schritt_erledigt'     => 'Erledigt',
-        'schritt_rueckgaengig' => 'Rückgängig gemacht',
+        'schritt_erledigt'       => 'Erledigt',
+        'schritt_rueckgaengig'   => 'Rückgängig gemacht',
         'verantwortlich_gesetzt' => 'Verantwortlich gesetzt',
-        'datum_gesetzt'        => 'Zieldatum gesetzt',
-        'startdatum_gesetzt'   => 'Startdatum gesetzt',
-        'kommentar_gesetzt'    => 'Kommentar aktualisiert',
+        'datum_gesetzt'          => 'Zieldatum gesetzt',
+        'startdatum_gesetzt'     => 'Startdatum gesetzt',
+        'kommentar_gesetzt'      => 'Kommentar aktualisiert',
     ];
 
     $out = fopen('php://output', 'w');
@@ -91,6 +89,8 @@ function handleExportAktivitaeten(PDO $db, array $config, array $input): void
     fclose($out);
     exit;
 }
+
+function handleExportCsv(PDO $db, array $config, array $input): void
 {
     Guard::requireLogin($db);
 
