@@ -38,10 +38,10 @@ header{
 }
 h1{ font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:700; margin:0; }
 
-main{ flex:1; padding:20px; width:100%; box-sizing:border-box; }
+main{ flex:1; padding:20px 40px; width:100%; box-sizing:border-box; }
 
 @media (min-width:900px) {
-  main{ padding:24px 40px; }
+  main{ padding:24px 60px; }
 }
 
 footer{ padding:14px 20px; text-align:center; font-size:12px; color:var(--muted); }
@@ -248,6 +248,9 @@ footer{ padding:14px 20px; text-align:center; font-size:12px; color:var(--muted)
   .parallel-badge{ background:#555 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .toggle-wrap{ display:none; }
 }
+
+/* ============================================================
+   Druckansicht – Checkliste
    Zeigt die Checkliste sauber auf Papier:
    - Header/Footer bleiben, Navigation/Buttons verschwinden
    - Alle Schritte ausgeklappt (detail-Bereich immer sichtbar)
@@ -401,11 +404,17 @@ footer{ padding:14px 20px; text-align:center; font-size:12px; color:var(--muted)
 .tl-meta{ font-size:11px; color:var(--muted); }
 
 @media print {
-  .zeitstrahl-tabs{ display:none !important; }
-  .gantt-wrap{ overflow:visible; }
-  .gantt-label-zelle{ min-width:140px; max-width:140px; font-size:9px; }
-  .gantt-tag{ font-size:7px; }
+  /* Zeitstrahl: Querformat für mehr Breite */
+  .zeitstrahl-tabs, .gantt-zoom{ display:none !important; }
+  .gantt-wrap{ overflow:visible; width:100%; }
+  .gantt-label-zelle{ min-width:160px; max-width:160px; font-size:9pt; }
+  .gantt-tag{ font-size:7pt; }
+  .gantt-zelle{ height:18px; }
+  .gantt-balken, .gantt-punkt{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .gantt-phase-label{ font-size:9pt; font-weight:bold; }
   .tl-eintrag{ page-break-inside:avoid; }
+  .tl-datum-label{ font-size:9pt; }
+  .tl-titel{ font-size:10pt; }
 }
 
 /* ============================================================

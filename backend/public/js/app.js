@@ -1158,6 +1158,16 @@ function renderExportLeiste(typ) {
   return leiste;
 }
 
+function xmlEsc(str) {
+  // Escaping für SVG-Textinhalte: &, <, >, " müssen als Entities kodiert werden,
+  // sonst ist das SVG kein gültiges XML und Firefox/Inkscape zeigen Parse-Fehler.
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function exportiereGanttAlsSvg() {
   const liste = STATE.user ? STATE.schritte : (STATE.publicDashboard?.schritte ?? []);
   const mitDatum = liste.filter((s) => s.geplantes_datum);
@@ -1166,42 +1176,65 @@ function exportiereGanttAlsSvg() {
     return;
   }
 
-  const daten    = mitDatum.flatMap((s) => s.start_datum ? [s.start_datum, s.geplantes_datum] : [s.geplantes_datum]).sort();
-  const minDatum = new Date(daten[0]);
-  const maxDatum = new Date(daten[daten.length - 1]);
-  const zoom     = STATE.ganttZoom;
-  const spanTage = Math.max(7, Math.ceil((maxDatum - minDatum) / 86400000) + 2);
+  const daten      = mitDatum.flatMap((s) => s.start_datum ? [s.start_datum, s.geplantes_datum] : [s.geplantes_datum]).sort();
+  const minDatum   = new Date(daten[0]);
+  const maxDatum   = new Date(daten[daten.length - 1]);
+  const zoom       = STATE.ganttZoom;
+  const spanTage   = Math.max(7, Math.ceil((maxDatum - minDatum) / 86400000) + 2);
   const spanSpalten = Math.ceil(spanTage / zoom);
 
-  const LABELBREITE = 220;
-  const SPALTENBREITE = 28;
-  const ZEILENHOEHE = 24;
-  const KOPFHOEHE = 28;
+  const LABELBREITE  = 240;
+  const SPALTENBREITE = 30;
+  const ZEILENHOEHE  = 26;
+  const KOPFHOEHE    = 32;
+  const PADDING      = 16;
 
-  // Zeilen zählen
   const phasen = [];
   const gesehene = new Set();
   for (const s of liste) {
     if (!gesehene.has(s.phase)) { phasen.push(s.phase); gesehene.add(s.phase); }
   }
+  // Nur Schritte MIT Datum werden gerendert, Phasen zählen immer
+  const zeilenMitDatum = liste.filter((s) => s.geplantes_datum).length;
   const gesamtZeilen = phasen.length + liste.length;
-  const breite  = LABELBREITE + spanSpalten * SPALTENBREITE + 20;
-  const hoehe   = KOPFHOEHE + gesamtZeilen * ZEILENHOEHE + 20;
-
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${breite}" height="${hoehe}" font-family="Arial, sans-serif" font-size="11">`;
-  svg += `<rect width="${breite}" height="${hoehe}" fill="#F5F2ED"/>`;
-
-  // Datumsachse
-  for (let i = 0; i < spanSpalten; i++) {
-    const d = new Date(minDatum); d.setDate(d.getDate() + i * zoom);
-    const x = LABELBREITE + i * SPALTENBREITE;
-    const label = `${d.getDate()}.${d.getMonth()+1}.`;
-    svg += `<line x1="${x}" y1="0" x2="${x}" y2="${hoehe}" stroke="#ddd" stroke-width="0.5"/>`;
-    svg += `<text x="${x+2}" y="16" fill="#888" font-size="9">${label}</text>`;
-  }
+  const rasterBreite = spanSpalten * SPALTENBREITE;
+  const breite = LABELBREITE + rasterBreite + PADDING * 2;
+  const hoehe  = KOPFHOEHE + gesamtZeilen * ZEILENHOEHE + PADDING;
 
   const tagZuSpalte = (iso) => Math.floor(Math.round((new Date(iso) - minDatum) / 86400000) / zoom);
   const heute = heuteISO();
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${breite}" height="${hoehe}" `
+           + `font-family="Arial, Helvetica, sans-serif" font-size="11">`;
+
+  // Hintergrund
+  svg += `<rect width="${breite}" height="${hoehe}" fill="#F5F2ED"/>`;
+
+  // Clip-Pfad damit Balken nicht über den rechten Rand ragen
+  svg += `<defs><clipPath id="raster-clip">`
+       + `<rect x="${LABELBREITE}" y="0" width="${rasterBreite}" height="${hoehe}"/>`
+       + `</clipPath></defs>`;
+
+  // Gitternetzlinien und Datumsachse
+  for (let i = 0; i <= spanSpalten; i++) {
+    const x = LABELBREITE + i * SPALTENBREITE;
+    svg += `<line x1="${x}" y1="${KOPFHOEHE}" x2="${x}" y2="${hoehe}" stroke="#ddd" stroke-width="0.5"/>`;
+    if (i < spanSpalten) {
+      const d = new Date(minDatum); d.setDate(d.getDate() + i * zoom);
+      const iso = d.toISOString().slice(0, 10);
+      const endD = new Date(d.getTime() + (zoom - 1) * 86400000);
+      const istHeuteSpalte = iso <= heute && heute <= endD.toISOString().slice(0, 10);
+      if (istHeuteSpalte) {
+        svg += `<rect x="${x}" y="0" width="${SPALTENBREITE}" height="${hoehe}" fill="rgba(91,111,168,0.08)"/>`;
+      }
+      const label = `${d.getDate()}.${d.getMonth()+1}.`;
+      svg += `<text x="${x + 2}" y="${KOPFHOEHE - 6}" fill="${istHeuteSpalte ? '#5B6FA8' : '#888'}" `
+           + `font-size="9" font-weight="${istHeuteSpalte ? 'bold' : 'normal'}">${xmlEsc(label)}</text>`;
+    }
+  }
+
+  // Trennlinie unter Datumsachse
+  svg += `<line x1="0" y1="${KOPFHOEHE}" x2="${breite}" y2="${KOPFHOEHE}" stroke="#ccc" stroke-width="1"/>`;
 
   let zeilenY = KOPFHOEHE;
   let letztePhase = null;
@@ -1212,32 +1245,45 @@ function exportiereGanttAlsSvg() {
       letztePhase = schritt.phase;
       phaseNr++;
       const nameOhneNr = schritt.phase.replace(/^\d+\.\s*/, '');
-      svg += `<rect x="0" y="${zeilenY}" width="${breite}" height="${ZEILENHOEHE}" fill="${schritt.phase_farbe}22"/>`;
-      svg += `<text x="8" y="${zeilenY + 16}" fill="${schritt.phase_farbe}" font-weight="bold">${phaseNr}. ${nameOhneNr}</text>`;
+      svg += `<rect x="0" y="${zeilenY}" width="${breite}" height="${ZEILENHOEHE}" fill="${schritt.phase_farbe}28"/>`;
+      svg += `<text x="8" y="${zeilenY + ZEILENHOEHE - 7}" fill="${schritt.phase_farbe}" `
+           + `font-weight="bold" font-size="11">${xmlEsc(phaseNr + '. ' + nameOhneNr)}</text>`;
       zeilenY += ZEILENHOEHE;
     }
 
-    svg += `<rect x="0" y="${zeilenY}" width="${breite}" height="${ZEILENHOEHE}" fill="${zeilenY % (ZEILENHOEHE * 2) === 0 ? '#fff' : '#F9F8F5'}"/>`;
+    // Zeilen-Hintergrund abwechselnd
+    svg += `<rect x="0" y="${zeilenY}" width="${breite}" height="${ZEILENHOEHE}" `
+         + `fill="${zeilenY % (ZEILENHOEHE * 2) === 0 ? '#fff' : '#F9F8F5'}"/>`;
 
-    const titelText = schritt.titel.length > 28 ? schritt.titel.slice(0, 27) + '…' : schritt.titel;
+    // Titel – max 32 Zeichen, danach kürzen
+    const titelRoh  = schritt.titel;
+    const titelText = titelRoh.length > 32 ? titelRoh.slice(0, 31) + '\u2026' : titelRoh;
     const titelFarbe = schritt.erledigt ? '#aaa' : '#333';
     const titelDeko  = schritt.erledigt ? 'line-through' : 'none';
-    svg += `<text x="10" y="${zeilenY + 16}" fill="${titelFarbe}" text-decoration="${titelDeko}">${titelText}</text>`;
+    svg += `<text x="10" y="${zeilenY + ZEILENHOEHE - 7}" fill="${titelFarbe}" `
+         + `text-decoration="${titelDeko}" font-size="10">${xmlEsc(titelText)}</text>`;
 
     if (schritt.geplantes_datum) {
       const startSpalte = schritt.start_datum ? tagZuSpalte(schritt.start_datum) : tagZuSpalte(schritt.geplantes_datum);
       const endeSpalte  = tagZuSpalte(schritt.geplantes_datum);
-      const x1 = LABELBREITE + startSpalte * SPALTENBREITE + 2;
-      const x2 = LABELBREITE + endeSpalte * SPALTENBREITE + SPALTENBREITE - 2;
+      // Spalten auf gültige Grenzen einschränken
+      const s0 = Math.max(0, Math.min(startSpalte, spanSpalten - 1));
+      const s1 = Math.max(0, Math.min(endeSpalte,  spanSpalten - 1));
+      const x1 = LABELBREITE + s0 * SPALTENBREITE + 2;
+      const x2 = LABELBREITE + s1 * SPALTENBREITE + SPALTENBREITE - 2;
       const y  = zeilenY + 7;
-      const h  = 10;
+      const h  = 12;
       const farbe = schritt.erledigt ? '#ccc' : (schritt.geplantes_datum < heute ? '#c0392b' : schritt.phase_farbe);
 
-      if (startSpalte < endeSpalte) {
-        svg += `<rect x="${x1}" y="${y}" width="${x2-x1}" height="${h}" rx="4" fill="${farbe}" opacity="0.85"/>`;
+      svg += `<g clip-path="url(#raster-clip)">`;
+      if (s0 < s1) {
+        svg += `<rect x="${x1}" y="${y}" width="${x2 - x1}" height="${h}" rx="4" `
+             + `fill="${farbe}" opacity="0.85"/>`;
       } else {
-        svg += `<circle cx="${x1 + SPALTENBREITE/2 - 2}" cy="${y + h/2}" r="5" fill="${farbe}"/>`;
+        svg += `<circle cx="${LABELBREITE + s0 * SPALTENBREITE + SPALTENBREITE / 2}" `
+             + `cy="${y + h / 2}" r="6" fill="${farbe}"/>`;
       }
+      svg += `</g>`;
     }
 
     zeilenY += ZEILENHOEHE;
@@ -1245,7 +1291,7 @@ function exportiereGanttAlsSvg() {
 
   svg += '</svg>';
 
-  const blob = new Blob([svg], { type: 'image/svg+xml' });
+  const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
@@ -1253,6 +1299,7 @@ function exportiereGanttAlsSvg() {
   a.click();
   URL.revokeObjectURL(url);
 }
+
 
 // ============================================================================
 // Aktivitätsprotokoll
