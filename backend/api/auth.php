@@ -20,13 +20,16 @@
 /**
  * Endpunkte: POST /api/login, POST /api/logout, GET /api/me
  *
- * Die eigentliche Passwortprüfung steckt komplett in
- * App\Auth\WebUntisAuth - hier kommt zusätzlich die Freigabe-Liste dazu:
- * ein korrektes WebUntis-Passwort allein reicht NICHT mehr aus, die
- * Person muss zusätzlich schon in benutzer_rollen stehen (von einem
- * Admin vorab eingetragen, siehe api/rollen.php). Das ist die bewusste
- * Umstellung von "jede Lehrkraft kann sich einloggen" auf "nur das
- * Untis/WebUntis-Team".
+ * Login-Reihenfolge:
+ *   1. Ist die Person in benutzer_rollen und hat einen passwort_hash?
+ *      → Lokales Passwort prüfen (bcrypt). Bei Erfolg: einloggen ohne
+ *        WebUntis-Request. Bei Misserfolg: trotzdem weiter zu Schritt 2.
+ *   2. WebUntis-Authentifizierung (wie bisher).
+ *   3. Freigabe-Prüfung: Person muss in benutzer_rollen stehen.
+ *
+ * Das lokale Passwort wird NUR per SQL gesetzt, kein UI – es ist ein
+ * Notfall-Mechanismus für den Fall dass WebUntis nicht erreichbar ist.
+ * Siehe migrations/008_lokales_passwort.sql für die genauen Befehle.
  */
 
 use App\Auth\WebUntisAuth;
@@ -38,26 +41,42 @@ function handleLogin(PDO $db, array $config, array $input): void
 {
     $username = (string) ($input['username'] ?? '');
     $password = (string) ($input['password'] ?? '');
-    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unbekannt';
+    $ip       = $_SERVER['REMOTE_ADDR'] ?? 'unbekannt';
 
-    $auth = new WebUntisAuth($config, $db);
+    // --- Schritt 1: Lokales Passwort prüfen ---
+    $lokalStmt = $db->prepare(
+        'SELECT anzeigename, rolle, passwort_hash FROM benutzer_rollen WHERE webuntis_user = :u'
+    );
+    $lokalStmt->execute([':u' => $username]);
+    $lokalZeile = $lokalStmt->fetch();
+
+    if ($lokalZeile && !empty($lokalZeile['passwort_hash'])) {
+        if (password_verify($password, $lokalZeile['passwort_hash'])) {
+            // Lokaler Login erfolgreich
+            protokolliereLoginVersuch($db, $username, true, 'lokal', $ip);
+            $user = [
+                'webuntis_user' => $username,
+                'anzeigename'   => $lokalZeile['anzeigename'] ?: $username,
+                'rolle'         => $lokalZeile['rolle'],
+            ];
+            Session::login($user);
+            Response::json($user);
+        }
+        // Lokales Passwort falsch – weiter mit WebUntis-Prüfung
+    }
+
+    // --- Schritt 2: WebUntis-Authentifizierung ---
+    $auth   = new WebUntisAuth($config, $db);
     $result = $auth->authenticate($username, $password, $ip);
 
     if ($result === null) {
-        // Bewusst eine einzige, unspezifische Meldung für "falsches
-        // Passwort", "falsche Rolle (z. B. Schüler)" und "zu viele
-        // Versuche" - Details stehen im login_log, sollen aber nicht an
-        // den Client verraten werden (kein Username-Enumeration-Leak).
         Response::error('Anmeldung nicht möglich. Bitte Zugangsdaten prüfen.', 401);
     }
 
+    // --- Schritt 3: Freigabe-Prüfung ---
     $rolle = findeBenutzerRolle($db, $result['username']);
 
     if ($rolle === null) {
-        // Anders als oben: hier DARF die Meldung spezifisch sein. Das
-        // Passwort war korrekt, es geht nicht um ein Geheimnis, sondern
-        // um eine bewusste Zugriffsbeschränkung, die die Person ruhig
-        // verstehen darf.
         protokolliereLoginVersuch($db, $result['username'], false, 'nicht_freigegeben', $ip);
         Response::error(
             'Diese App ist nur für freigegebene Personen (Untis/WebUntis-Team) nutzbar. '
@@ -91,10 +110,9 @@ function handleMe(PDO $db): void
 }
 
 /**
- * Liest die Rollen-Zeile zu einem WebUntis-Benutzernamen, OHNE sie bei
- * Fehlen automatisch anzulegen (das war das alte Verhalten - siehe Git-
- * Historie). Eine Person muss jetzt VOR ihrem ersten Login von einem
- * Admin in "Zugriff verwalten" eingetragen werden.
+ * Liest die Rollen-Zeile zu einem WebUntis-Benutzernamen.
+ * Gibt bewusst NICHT passwort_hash zurück – der Hash verlässt nie den
+ * Login-Handler und wird nirgendwo sonst benötigt.
  */
 function findeBenutzerRolle(PDO $db, string $username): ?array
 {
