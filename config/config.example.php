@@ -20,7 +20,20 @@ return [
         // MRBS unterscheiden lassen (rein informativ, kein Geheimnis).
         'client'   => 'SchuljahreswechselApp',
         // Nur diese personType-Werte dürfen sich in dieser App anmelden.
-        // 2 = Lehrkraft. (5 = Schüler, andere Werte siehe WebUntis-API-Doku.)
+        // 2 = Lehrkraft. Weitere Typen je nach Schule/Konfiguration möglich,
+        // z. B. 16 für WebUntis-Administratoren.
+        //
+        // Eigenen personType herausfinden (auf dem Server ausführen):
+        //   php -r "\$c=require 'config/config.php';\$u=\$c['webuntis']['base_url'].
+        //   '/WebUntis/jsonrpc.do?school='.\$c['webuntis']['school'];
+        //   \$p=json_encode(['id'=>1,'method'=>'authenticate','params'=>
+        //   ['user'=>'KUERZEL','password'=>'PASSWORT','client'=>'test'],
+        //   'jsonrpc'=>'2.0']);\$ctx=stream_context_create(['http'=>['method'=>
+        //   'POST','header'=>'Content-Type: application/json','content'=>\$p]]);
+        //   \$r=json_decode(file_get_contents(\$u,false,\$ctx),true);
+        //   echo \$r['result']['personType']??'n/a';"
+        //
+        // Beispiel für Lehrkräfte + WebUntis-Admins: [2, 16]
         'allowed_person_types' => [2],
         // Timeouts in Sekunden, damit ein langsames/ausgefallenes WebUntis
         // nicht den PHP-Prozess blockiert.
