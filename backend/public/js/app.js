@@ -410,9 +410,15 @@ async function reihenfolgePhasenAendern(phasen_ids) {
 // ============================================================================
 
 function render() {
-  $werBinIch.textContent = STATE.user
-    ? `Angemeldet als ${STATE.user.anzeigename} (${STATE.user.rolle})`
-    : '';
+  if (STATE.user) {
+    $werBinIch.innerHTML = `
+      <span class="footer-user">
+        <span class="footer-user-name">${STATE.user.anzeigename}</span>
+        <span class="footer-user-rolle ${STATE.user.rolle === 'admin' ? 'footer-rolle-admin' : 'footer-rolle-mitglied'}">${STATE.user.rolle}</span>
+      </span>`;
+  } else {
+    $werBinIch.innerHTML = '';
+  }
 
   $app.innerHTML = '';
   $app.appendChild(renderKopfleiste());
