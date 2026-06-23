@@ -14,6 +14,22 @@ Geplant:
 
 ---
 
+## [1.9.0] – 2026-06-23
+
+### Hinzugefügt
+- **Lokales Fallback-Passwort** für Notfall-Admin: optionaler `passwort_hash`
+  (bcrypt) in `benutzer_rollen`; wenn gesetzt, wird zuerst das lokale
+  Passwort geprüft – bei Erfolg entfällt der WebUntis-Request komplett.
+  Stimmt das lokale Passwort nicht, wird wie gewohnt gegen WebUntis
+  geprüft. Migration 008.
+- Zwei Varianten möglich: lokales Passwort für bestehenden WebUntis-Nutzer,
+  oder vollständig unabhängiger lokaler Benutzer (z. B. `notfalladmin`)
+  der nicht an ein WebUntis-Kürzel gebunden ist
+- Der Hash verlässt den Server nie (weder in API-Antworten noch im
+  Aktivitätsprotokoll)
+
+---
+
 ## [1.8.0] – 2026-06-22
 
 ### Behoben
@@ -63,6 +79,8 @@ Geplant:
 ### Behoben
 - Aufklappbare Boxen klappten nach Datumseingabe zu, weil der Rerender
   den DOM neu aufgebaut hat; behoben durch Zustandsspeicherung in STATE
+- Kommentarfeld blieb nach Speichern leer bis zum Neuladen der Seite;
+  Wert wird jetzt sofort in STATE aktualisiert
 
 ---
 
@@ -163,24 +181,8 @@ Geplant:
 - **Zugriffsbeschränkung**: Login nur für vorab freigegebene Personen;
   korrektes WebUntis-Passwort allein reicht nicht mehr
 - Admin kann Personen vorab eintragen (vor dem ersten Login)
-- Spezifische Fehlermeldung bei Ablehnung (nicht freigegebene Person)
 - **Checkliste verwalten**: Schritte über die Oberfläche hinzufügen,
   bearbeiten, deaktivieren und per Drag-and-Drop umsortieren
-- Neuer Schritt erzeugt sofort Instanz im laufenden Schuljahr
-- Phasenwechsel für Schritte über Dropdown
-- `docs/INSTALL.md` Schritt 5 angepasst: erster Admin per `INSERT`
-  (nicht mehr `UPDATE`, da kein Auto-Login mehr)
-
----
-
-## [0.3.0] – 2026-06-17 (Pre-Release)
-
-### Hinzugefügt
-- **Dashboard-Tab** innerhalb der eingeloggten App: „Aktuell dran",
-  „Überfällig", „Demnächst (14 Tage)", Fortschritt je Phase
-- Rollen-Änderungen wirken sofort ohne Re-Login (Guard liest Rolle
-  bei jedem Request frisch aus DB)
-- Logout-Button immer sichtbar (auch ohne aktives Schuljahr)
 
 ---
 
@@ -193,7 +195,6 @@ Geplant:
 - Migrationen 001 (Schema) und 002 (Seed: 11 Schritte in 5 Phasen)
 - Uberspace-Deployment: bare repo, post-receive Hook, Symlink als
   Additional DocumentRoot
-- Erstes Admin-Bootstrap per direktem SQL (`INSERT INTO benutzer_rollen`)
 
 ---
 

@@ -13,6 +13,7 @@ sqlite3 data/app.sqlite < migrations/004_parallel_flag.sql
 sqlite3 data/app.sqlite < migrations/005_vorlagen_sets.sql
 sqlite3 data/app.sqlite < migrations/006_start_datum.sql
 sqlite3 data/app.sqlite < migrations/007_aktivitaeten.sql
+sqlite3 data/app.sqlite < migrations/008_lokales_passwort.sql
 
 php -S localhost:8000 -t backend/public dev-router.php
 ```
@@ -84,10 +85,8 @@ sqlite3 data/app.sqlite < migrations/004_parallel_flag.sql
 sqlite3 data/app.sqlite < migrations/005_vorlagen_sets.sql
 sqlite3 data/app.sqlite < migrations/006_start_datum.sql
 sqlite3 data/app.sqlite < migrations/007_aktivitaeten.sql
+sqlite3 data/app.sqlite < migrations/008_lokales_passwort.sql
 ```
-
-`sqlite3` ist auf Uberspace vorinstalliert. PHP läuft unter dem eigenen
-Uberspace-Account, daher hat es automatisch Schreibrechte auf `data/`.
 
 ### 5. Erste Admin-Person einrichten
 
@@ -104,7 +103,55 @@ sqlite3 data/app.sqlite \
 Danach normal anmelden – der Admin-Bereich erscheint am Ende der Seite.
 Weitere Personen lassen sich über „Zugriff → Freigeben" ohne SQL eintragen.
 
-### 6. Deployment-Workflow (laufender Betrieb)
+### 6. Lokales Notfall-Passwort setzen (optional)
+
+Für den Fall dass WebUntis nicht erreichbar ist, kann ein lokales Passwort
+hinterlegt werden. Es hat Vorrang vor der WebUntis-Prüfung, ist aber
+vollständig optional.
+
+**Variante A – Lokales Passwort für einen bestehenden WebUntis-Nutzer:**
+
+```bash
+# Hash generieren:
+php -r "echo password_hash('SICHERES_PASSWORT', PASSWORD_BCRYPT) . PHP_EOL;"
+
+# Hash in die Datenbank schreiben:
+sqlite3 data/app.sqlite \
+  "UPDATE benutzer_rollen SET passwort_hash = 'HASH_VON_OBEN' \
+   WHERE webuntis_user = 'DEIN_KUERZEL';"
+```
+
+**Variante B – Vollständig unabhängigen lokalen Benutzer anlegen:**
+
+Dieser Benutzer ist nicht an ein WebUntis-Kürzel gebunden und kann sich
+ausschließlich mit dem lokalen Passwort anmelden. Ideal als Notfall-Admin
+der unabhängig von WebUntis funktioniert.
+
+```bash
+# Hash generieren:
+php -r "echo password_hash('SICHERES_PASSWORT', PASSWORD_BCRYPT) . PHP_EOL;"
+
+# Lokalen Benutzer anlegen (webuntis_user ist nur ein Bezeichner):
+sqlite3 data/app.sqlite \
+  "INSERT INTO benutzer_rollen (webuntis_user, anzeigename, rolle, passwort_hash) \
+   VALUES ('notfalladmin', 'Notfall Admin', 'admin', 'HASH_VON_OBEN');"
+```
+
+Der Benutzername (`notfalladmin`) kann frei gewählt werden – er wird nie
+gegen WebUntis geprüft, weil der lokale Hash-Check vorher greift.
+
+Zum Entfernen eines lokalen Passworts (Variante A):
+
+```bash
+sqlite3 data/app.sqlite \
+  "UPDATE benutzer_rollen SET passwort_hash = NULL \
+   WHERE webuntis_user = 'DEIN_KUERZEL';"
+```
+
+Der Hash verlässt den Server nie – er taucht weder in API-Antworten noch
+im Aktivitätsprotokoll auf.
+
+### 7. Deployment-Workflow (laufender Betrieb)
 
 ```bash
 # Lokal: Änderungen committen und auf beide Remotes pushen
@@ -129,6 +176,7 @@ sqlite3 /var/www/virtual/DEIN_USER/schuljahreswechsel-webuntis-src/data/app.sqli
 | `002_seed_schritte.sql` | 11 Standard-Schritte für den WebUntis-Wechsel |
 | `003_phasen.sql` | Phasen als eigene Tabelle (aus schritt_vorlagen extrahiert) |
 | `004_parallel_flag.sql` | `kann_parallel`-Flag auf Vorlagen und Instanzen |
-| `005_vorlagen_sets.sql` | Vorlagen-Snapshots (vorlagen_sets, vorlagen_set_phasen, vorlagen_set_schritte) |
-| `006_start_datum.sql` | `start_datum` pro Schritt-Instanz für Zeitraum-Darstellung im Gantt |
+| `005_vorlagen_sets.sql` | Vorlagen-Snapshots |
+| `006_start_datum.sql` | `start_datum` pro Schritt-Instanz |
 | `007_aktivitaeten.sql` | Aktivitätsprotokoll-Tabelle |
+| `008_lokales_passwort.sql` | `passwort_hash`-Spalte für lokalen Notfall-Login |

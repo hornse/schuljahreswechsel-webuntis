@@ -51,9 +51,12 @@ als SVG-Datei (⬇ SVG) oder über den Browser-Druckdialog als PDF
 
 Über den Button „Anmelden" oben rechts mit den gewohnten
 WebUntis-Zugangsdaten. Ein korrektes Passwort allein reicht nicht – die
-Person muss zusätzlich von einem Admin freigegeben worden sein (siehe
-„Zugriff verwalten" unten). Schüler- und Erziehungsberechtigten-Logins
-werden immer abgewiesen.
+Person muss zusätzlich von einem Admin freigegeben worden sein. Schüler-
+und Erziehungsberechtigten-Logins werden immer abgewiesen.
+
+Wenn ein lokales Notfall-Passwort gesetzt wurde (siehe unten), kann
+alternativ damit eingeloggt werden – auch wenn WebUntis nicht erreichbar
+ist.
 
 ---
 
@@ -62,8 +65,7 @@ werden immer abgewiesen.
 Über den Tab „Checkliste" erreichbar. Jeden Schritt anklicken, um Details
 aufzuklappen:
 
-**Häkchen** – setzt den Schritt auf erledigt (erscheint durchgestrichen,
-Fortschrittsbalken aktualisiert sich). Die Aktion wird im
+**Häkchen** – setzt den Schritt auf erledigt. Die Aktion wird im
 Aktivitätsprotokoll aufgezeichnet.
 
 **Verantwortlich** – Freitext, wer diesen Schritt übernimmt.
@@ -78,27 +80,24 @@ werden automatisch als parallel erkannt und mit gestricheltem Rahmen und
 **Parallel möglich** – manuelles Flag für dieses Schuljahr, unabhängig
 von den eingetragenen Daten.
 
-**Kommentar** – schuljahrspezifische Kurznotiz zum aktuellen Stand,
-z. B. „verzögert sich, Kollegin ist krank". Nur für angemeldete Personen
-sichtbar. Im Archiv-Modus wird ein vorhandener Kommentar angezeigt aber
-nicht bearbeitet.
+**Kommentar** – schuljahrspezifische Kurznotiz zum aktuellen Stand.
+Nur für angemeldete Personen sichtbar. Im Archiv-Modus read-only.
 
-**Weiterführende Infos** – erscheint wenn ein Admin Notizen hinterlegt
-hat (Markdown-formatiert). Nur für angemeldete Personen sichtbar.
+**Weiterführende Infos** – vom Admin hinterlegte Hinweise (Markdown).
+Nur für angemeldete Personen sichtbar, nicht bearbeitbar.
 
 Alle Änderungen werden beim Verlassen des Felds automatisch gespeichert.
 Datumsfelder und der Parallel-Toggle aktualisieren den Zeitstrahl sofort.
 Aufgeklappte Detail-Boxen bleiben auch nach einer Aktualisierung offen.
 
-**Export:** Über ⬇ CSV wird die vollständige Checkliste mit allen Feldern
-als CSV-Datei heruntergeladen (UTF-8, Semikolon-getrennt, öffnet direkt
-in Excel). Über 🖨 PDF öffnet sich der Browser-Druckdialog.
+**Export:** Über ⬇ CSV wird die vollständige Checkliste heruntergeladen
+(UTF-8, Semikolon-getrennt, öffnet direkt in Excel). Über 🖨 PDF öffnet
+sich der Browser-Druckdialog.
 
 ### Schuljahr-Auswahl
 
-Oben links in der Checkliste erscheint ein Auswahlfeld sobald mehr als
-ein Schuljahr existiert. Vergangene Schuljahre öffnen sich in einer
-read-only Archiv-Ansicht – Häkchen und Felder sind gesperrt.
+Oben links erscheint ein Auswahlfeld sobald mehr als ein Schuljahr
+existiert. Vergangene Schuljahre öffnen sich als read-only Archiv-Ansicht.
 
 ---
 
@@ -112,26 +111,18 @@ Erscheint nach Anmeldung mit der Rolle „admin" am Ende der Seite.
 Basis wählen:
 - „Aktuelle Vorlage" – kopiert alle aktiven Schritte und Phasen
 - Ein gespeicherter Snapshot – legt eine eigene Kopie der Phasen und
-  Schritte aus dem Snapshot an (nützlich für andere Prozesse)
+  Schritte aus dem Snapshot an
 
 Das neue Schuljahr wird automatisch aktiv, das alte bleibt als Archiv.
-
-**Schuljahr aktivieren:** Über den Button in der Tabelle kann ein früheres
-Schuljahr wieder aktiv gesetzt werden.
 
 ### Vorlagen-Snapshots
 
 **Jetzt einfrieren:** Speichert den aktuellen Stand aller Phasen und
-aktiven Schritte als benannten Snapshot. Der Snapshot ist danach
-eingefroren – spätere Änderungen an der aktiven Vorlage verändern ihn
-nicht.
+aktiven Schritte als benannten Snapshot. Spätere Änderungen verändern
+ihn nicht.
 
-Snapshots eignen sich, um verschiedene Prozesse parallel zu verwalten,
-z. B. „WebUntis-Wechsel", „Abitur-Organisation" oder „Geräteausgabe"
-jeweils als eigene Vorlage.
-
-Über „löschen" wird ein Snapshot vollständig entfernt (mit
-Bestätigungsdialog).
+Snapshots eignen sich für verschiedene Prozesse, z. B. „WebUntis-Wechsel",
+„Abitur-Organisation" oder „Geräteausgabe".
 
 ### Zugriff verwalten
 
@@ -139,37 +130,29 @@ Nur Personen in dieser Liste können sich anmelden. Vor dem ersten Login
 einer Person hier „Freigeben" klicken – das WebUntis-Kürzel muss exakt
 dem Benutzernamen in WebUntis entsprechen.
 
-- **Rolle ändern:** Über das Auswahlfeld in der Zeile (mitglied ↔ admin).
-  Wirkt sofort beim nächsten Seitenaufruf, ohne erneuten Login.
-- **Entfernen:** „entfernen"-Button mit Bestätigungsdialog. Der eigene
-  Account und der letzte verbliebene Admin können nicht entfernt werden.
+- **Rolle ändern:** Über das Auswahlfeld (mitglied ↔ admin). Wirkt sofort.
+- **Entfernen:** Mit Bestätigungsdialog. Eigener Account und letzter Admin
+  sind geschützt.
 
 ### Checkliste verwalten
 
-Hier wird die wiederkehrende Vorlage gepflegt. Änderungen wirken sich
-sofort auf das laufende Schuljahr aus.
-
 **Phasen:**
-- Am ⠿-Griff per Drag-and-Drop umsortieren – die Nummerierung
-  (1., 2., 3. ...) passt sich automatisch an
-- Farbwahl über die eigene Farbpalette (15 vordefinierte Farben plus
-  Hex-Eingabefeld)
+- Am ⠿-Griff per Drag-and-Drop umsortieren – Nummerierung passt sich an
+- Farbwahl über eigene Farbpalette (15 Farben + Hex-Eingabe)
 - Phasenname direkt im Textfeld bearbeiten
-- „Phase anlegen" für neue Phasen (Name und Farbe)
+- „Phase anlegen" für neue Phasen
 
 **Schritte je Phase:**
 - Am ⠿-Griff innerhalb der Phase umsortieren
 - Titel direkt im Textfeld bearbeiten
-- Phasenwechsel über das Auswahlfeld (Schritt landet ans Ende der neuen Phase)
-- „⇉ Default" – Parallel-Flag als Vorlage-Default für neue Schuljahre
-- „deaktivieren" – entfernt den Schritt aus künftigen Schuljahren,
-  lässt ihn im laufenden Schuljahr bestehen
+- Phasenwechsel über Auswahlfeld
+- „⇉ Default" – Parallel-Flag als Vorlage-Default
+- „deaktivieren" – entfernt Schritt aus künftigen Schuljahren
 - „+ Neuer Schritt" am Ende jedes Phasen-Blocks
 
 **Weiterführende Infos (ausgeklappt über ▸):**
-Formatierungs-Buttons für Fett, Kursiv, Aufzählung, nummerierte Liste und
-Links. Direkte Markdown-Eingabe ist ebenfalls möglich. Live-Vorschau
-erscheint direkt unter dem Textfeld. Unterstützte Syntax:
+Markdown-Textarea mit Formatierungs-Buttons und Live-Vorschau.
+Unterstützte Syntax:
 
 | Eingabe | Ergebnis |
 |---|---|
@@ -181,10 +164,26 @@ erscheint direkt unter dem Textfeld. Unterstützte Syntax:
 
 ### Aktivitätsprotokoll
 
-Zeigt die letzten 200 Aktionen im aktuellen Schuljahr: wer hat wann
-welchen Schritt erledigt, Verantwortliche gesetzt, Datum eingetragen oder
-einen Kommentar hinterlegt. Über „⬇ Als CSV exportieren" lässt sich das
-vollständige Protokoll herunterladen.
+Zeigt die letzten 200 Aktionen: wer hat wann welchen Schritt erledigt,
+Verantwortliche gesetzt, Datum eingetragen oder Kommentar hinterlegt.
+Über „⬇ Als CSV exportieren" vollständig herunterladbar.
+
+---
+
+## Lokales Notfall-Passwort (nur per SSH auf dem Server)
+
+Für den Fall dass WebUntis nicht erreichbar ist, gibt es zwei Optionen:
+
+**Lokales Passwort für bestehenden WebUntis-Nutzer:** Das Passwort wird
+an ein vorhandenes Kürzel gehängt. Bei der Anmeldung hat das lokale
+Passwort Vorrang – stimmt es nicht, wird trotzdem gegen WebUntis geprüft.
+
+**Vollständig unabhängiger lokaler Benutzer:** Ein Benutzer der nicht an
+ein WebUntis-Kürzel gebunden ist (z. B. `notfalladmin`). Er funktioniert
+ausschließlich mit dem lokalen Passwort, völlig unabhängig von WebUntis.
+
+Beide Varianten werden ausschließlich per SSH auf dem Server eingerichtet,
+es gibt kein UI dafür. Genaue Befehle siehe `docs/INSTALL.md`, Abschnitt 6.
 
 ---
 
